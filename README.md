@@ -1,7 +1,7 @@
 # Nebula GCI
 
 <p align="center">
-  <img src="assets/nebula_logo.jpg" width="200" alt="Nebula GCI Logo">
+  <img src="assets/nebula_logo.png" width="200" alt="Nebula GCI Logo">
 </p>
 
 <p align="center">

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Nebula GCI — Falcon BMS Ground Control Intercept
+"""Falcon-Eye GCI — Falcon BMS Ground Control Intercept
 By Riesu — contact@falcon-charts.com
 License: GNU GPL v3
 """
@@ -9,16 +9,16 @@ from datetime import datetime
 
 LOG_DIR = os.path.join(os.path.expanduser("~"),
     "AppData","Local","NebulаGCI","logs") if sys.platform=="win32" \
-    else os.path.join(os.path.expanduser("~"),".nebula_gci","logs")
+    else os.path.join(os.path.expanduser("~"),".falcon_eye_gci","logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Clean old logs — keep last 10
-old_logs = sorted(glob.glob(os.path.join(LOG_DIR, "nebula_*.log")))
+old_logs = sorted(glob.glob(os.path.join(LOG_DIR, "falcon_eye_*.log")))
 for f in old_logs[:-3]:
     try: os.remove(f)
     except OSError: pass
 
-LOG_FILE = os.path.join(LOG_DIR, f"nebula_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+LOG_FILE = os.path.join(LOG_DIR, f"falcon_eye_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
 
 logging.basicConfig(level=logging.INFO,
     format="[%(asctime)s] [%(levelname)-8s] %(name)s: %(message)s",
@@ -37,9 +37,9 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
-    app.setApplicationName("Nebula GCI")
+    app.setApplicationName("Falcon-Eye GCI")
     app.setStyle("Fusion")
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "nebula.ico")
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "falcon_eye.ico")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     w = MainWindow(); w.show()

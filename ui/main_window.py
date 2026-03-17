@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Nebula GCI — By Riesu (contact@falcon-charts.com) — GPL v3
+Falcon-Eye GCI — By Riesu (contact@falcon-charts.com) — GPL v3
 - Bouton CONNECTER remplacé par DÉCO quand connecté (un seul bouton)
 - Toggles séparés : Aéroports / ICAO / Nom
 - Pas de module dessin
@@ -101,7 +101,7 @@ class _Bridge(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Nebula GCI")
+        self.setWindowTitle("Falcon-Eye GCI")
         self.setMinimumSize(1000, 720)
         self.resize(1440, 900)
         self.setStyleSheet(STYLE)

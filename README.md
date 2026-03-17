@@ -1,7 +1,7 @@
-# Nebula GCI
+# Falcon-Eye GCI
 
 <p align="center">
-  <img src="assets/nebula_logo.png" width="350" alt="Nebula GCI Logo">
+  <img src="assets/falconeye_logo.png" width="350" alt="Falcon-Eye GCI Logo">
 </p>
 
 <p align="center">
@@ -22,9 +22,9 @@
 
 ### What is this?
 
-If you've ever played GCI in Falcon BMS, you know the struggle. Alt-tabbing between the 2D map and a notepad, trying to call out BRAAs while squinting at tiny dots on screen. Nebula was built to fix that.
+If you've ever played GCI in Falcon BMS, you know the struggle. Alt-tabbing between the 2D map and a notepad, trying to call out BRAAs while squinting at tiny dots on screen. Falcon-Eye was built to fix that.
 
-Nebula GCI is a standalone radar scope that connects directly to Falcon BMS. It gives you a god-view of every aircraft on the theatre — friendlies, hostiles, missiles — displayed on a tactical map with proper military symbology. Think of it as your dedicated GCI workstation.
+Falcon-Eye GCI is a standalone radar scope that connects directly to Falcon BMS. It gives you a god-view of every aircraft on the theatre — friendlies, hostiles, missiles — displayed on a tactical map with proper military symbology. Think of it as your dedicated GCI workstation.
 
 No more guessing who's where. Click an ally, click a bogey, read the BRAA. Done.
 
@@ -40,9 +40,9 @@ No more guessing who's where. Click an ally, click a bogey, read the BRAA. Done.
 ### Quick start
 
 1. Download and extract the archive
-2. Run **Nebula_GCI.exe**
+2. Run **Falcon-Eye_GCI.exe**
 3. Start Falcon BMS and launch a campaign or TE
-4. In Nebula, click **CONNECTER** — default settings (localhost:42674) work if BMS is on the same machine
+4. In Falcon-Eye, click **CONNECTER** — default settings (localhost:42674) work if BMS is on the same machine
 5. Optionally, click **MISSION** to load a .ini file for SAM rings and bullseye
 6. Contacts appear as soon as the mission is running
 
@@ -53,7 +53,7 @@ No more guessing who's where. Click an ally, click a bogey, read the BRAA. Done.
 
 ### How it connects
 
-Nebula reads the Tacview Real-Time Telemetry stream that BMS broadcasts on port 42674. This is the same data stream that Tacview itself uses for real-time replay. No mods, no plugins, no DLL injection — it just listens to what BMS already sends.
+Falcon-Eye reads the Tacview Real-Time Telemetry stream that BMS broadcasts on port 42674. This is the same data stream that Tacview itself uses for real-time replay. No mods, no plugins, no DLL injection — it just listens to what BMS already sends.
 
 If you're running BMS on a different machine, just enter that machine's IP in the connection dialog instead of 127.0.0.1.
 
@@ -75,9 +75,9 @@ A typical GCI session looks like this:
 
 ### C'est quoi ?
 
-Si tu as déjà fait du GCI sur Falcon BMS, tu connais la galère. Alt-tab entre la carte 2D et un bloc-notes, BRAA approximatifs donnés au pif en regardant des points minuscules. Nebula a été créé pour régler ça.
+Si tu as déjà fait du GCI sur Falcon BMS, tu connais la galère. Alt-tab entre la carte 2D et un bloc-notes, BRAA approximatifs donnés au pif en regardant des points minuscules. Falcon-Eye a été créé pour régler ça.
 
-Nebula GCI est un scope radar standalone qui se connecte directement à Falcon BMS. Il affiche tous les avions du théâtre — alliés, hostiles, missiles — sur une carte tactique avec la symbologie militaire. C'est ton poste de travail GCI dédié.
+Falcon-Eye GCI est un scope radar standalone qui se connecte directement à Falcon BMS. Il affiche tous les avions du théâtre — alliés, hostiles, missiles — sur une carte tactique avec la symbologie militaire. C'est ton poste de travail GCI dédié.
 
 Plus besoin de deviner. Tu cliques sur un allié, tu cliques sur un bogey, tu lis le BRAA. C'est fait.
 
@@ -93,9 +93,9 @@ Plus besoin de deviner. Tu cliques sur un allié, tu cliques sur un bogey, tu li
 ### Démarrage rapide
 
 1. Télécharge et extrais l'archive
-2. Lance **Nebula_GCI.exe**
+2. Lance **Falcon-Eye_GCI.exe**
 3. Démarre Falcon BMS et lance une campagne ou un TE
-4. Dans Nebula, clique **CONNECTER** — les paramètres par défaut (localhost:42674) fonctionnent si BMS tourne sur la même machine
+4. Dans Falcon-Eye, clique **CONNECTER** — les paramètres par défaut (localhost:42674) fonctionnent si BMS tourne sur la même machine
 5. Optionnellement, clique **MISSION** pour charger un fichier .ini (anneaux SAM, bullseye)
 6. Les contacts apparaissent dès que la mission tourne
 
@@ -106,7 +106,7 @@ Plus besoin de deviner. Tu cliques sur un allié, tu cliques sur un bogey, tu li
 
 ### Comment ça se connecte
 
-Nebula lit le flux Tacview Real-Time Telemetry que BMS diffuse sur le port 42674. C'est le même flux que Tacview utilise pour le replay en temps réel. Pas de mod, pas de plugin, pas d'injection de DLL — il écoute simplement ce que BMS envoie déjà.
+Falcon-Eye lit le flux Tacview Real-Time Telemetry que BMS diffuse sur le port 42674. C'est le même flux que Tacview utilise pour le replay en temps réel. Pas de mod, pas de plugin, pas d'injection de DLL — il écoute simplement ce que BMS envoie déjà.
 
 Si BMS tourne sur une autre machine, entre l'IP de cette machine dans le dialogue de connexion au lieu de 127.0.0.1.
 

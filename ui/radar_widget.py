@@ -1226,38 +1226,44 @@ window._bullseye=[];
 
 
 
-// ── Generic draggable + resizable for floating windows ───────────────────────
-function makeDragResize(panelId,dragId,resizeId){{
+// ── Generic draggable + resizable for floating windows ─────────────────────
+// Single global pointer state — prevents listener accumulation / UI freeze
+// when multiple windows (BRAA, Radio, FlightStrip) are open simultaneously.
+var _wm={active:null,mode:null,mx:0,my:0,sx:0,sy:0,sw:0,sh:0};
+document.addEventListener('mousemove',function(e){
+  if(!_wm.active)return;
+  if(_wm.mode==='drag'){
+    _wm.active.style.left=Math.max(0,e.clientX-_wm.mx)+'px';
+    _wm.active.style.top=Math.max(0,e.clientY-_wm.my)+'px';
+  }else if(_wm.mode==='resize'){
+    _wm.active.style.width=Math.max(240,_wm.sw+(e.clientX-_wm.sx))+'px';
+    _wm.active.style.maxHeight=Math.max(150,_wm.sh+(e.clientY-_wm.sy))+'px';
+  }
+});
+document.addEventListener('mouseup',function(){
+  _wm.active=null;_wm.mode=null;
+  document.body.style.userSelect='';
+});
+
+function makeDragResize(panelId,dragId,resizeId){
   var p=gv(panelId),d=gv(dragId);
   if(!p||!d)return;
-  var mx=0,my=0,dragging=false;
-  d.addEventListener('mousedown',function(e){{
-    if(e.target.classList.contains('braa-close')||e.target.classList.contains('fs-close'))return;
-    dragging=true;p.style.right='auto';p.style.bottom='auto';
-    mx=e.clientX-p.offsetLeft;my=e.clientY-p.offsetTop;
+  d.addEventListener('mousedown',function(e){
+    if(e.target.classList.contains('braa-close')||e.target.classList.contains('fs-close')||e.target.classList.contains('opt-close'))return;
+    p.style.right='auto';p.style.bottom='auto';
+    _wm.active=p;_wm.mode='drag';
+    _wm.mx=e.clientX-p.offsetLeft;_wm.my=e.clientY-p.offsetTop;
     document.body.style.userSelect='none';e.preventDefault();
-  }});
-  document.addEventListener('mousemove',function(e){{
-    if(!dragging)return;
-    p.style.left=Math.max(0,e.clientX-mx)+'px';
-    p.style.top=Math.max(0,e.clientY-my)+'px';
-  }});
-  document.addEventListener('mouseup',function(){{dragging=false;document.body.style.userSelect='';}});
-  if(resizeId){{
+  });
+  if(resizeId){
     var rh=gv(resizeId);if(!rh)return;
-    var resizing=false,sx=0,sy=0,sw=0,sh=0;
-    rh.addEventListener('mousedown',function(e){{
-      resizing=true;sx=e.clientX;sy=e.clientY;sw=p.offsetWidth;sh=p.offsetHeight;
+    rh.addEventListener('mousedown',function(e){
+      _wm.active=p;_wm.mode='resize';
+      _wm.sx=e.clientX;_wm.sy=e.clientY;_wm.sw=p.offsetWidth;_wm.sh=p.offsetHeight;
       document.body.style.userSelect='none';e.stopPropagation();e.preventDefault();
-    }});
-    document.addEventListener('mousemove',function(e){{
-      if(!resizing)return;
-      p.style.width=Math.max(240,sw+(e.clientX-sx))+'px';
-      p.style.maxHeight=Math.max(150,sh+(e.clientY-sy))+'px';
-    }});
-    document.addEventListener('mouseup',function(){{resizing=false;document.body.style.userSelect='';}});
-  }}
-}}
+    });
+  }
+}
 
 // Init drag/resize for windows
 makeDragResize('braa-win','braa-drag','braa-resize');

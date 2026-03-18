@@ -1,156 +1,189 @@
-# Falcon-Eye GCI
-
 <p align="center">
-  <img src="assets/falconeye_logo.png" width="350" alt="Falcon-Eye GCI Logo">
+  <img src="assets/falconeye_logo.png" width="220" alt="Falcon-Eye GCI">
 </p>
 
+<h1 align="center">Falcon-Eye GCI</h1>
+<p align="center"><strong>Ground Control Intercept tool for Falcon BMS</strong></p>
 <p align="center">
-  <strong>Ground Control Intercept tool for Falcon BMS</strong><br>
-  <em>By Riesu — <a href="mailto:contact@falcon-charts.com">contact@falcon-charts.com</a></em><br>
-  <a href="https://falcon-charts.com">falcon-charts.com</a>
+  <img src="https://img.shields.io/badge/Falcon_BMS-4.37_|_4.38-orange">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue">
+  <img src="https://img.shields.io/badge/license-GPL_v3-green">
+  <img src="https://img.shields.io/badge/platform-Windows-lightgrey">
 </p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/license-GPL%20v3-blue" alt="License">
-  <img src="https://img.shields.io/badge/BMS-4.38-orange" alt="BMS">
-  <img src="https://img.shields.io/badge/made%20in-France%20🇫🇷-blue" alt="Made in France">
-</p>
-
----
-
-## 🇬🇧 English
-
-### What is this?
-
-If you've ever played GCI in Falcon BMS, you know the struggle. Alt-tabbing between the 2D map and a notepad, trying to call out BRAAs while squinting at tiny dots on screen. Falcon-Eye was built to fix that.
-
-Falcon-Eye GCI is a standalone radar scope that connects directly to Falcon BMS. It gives you a god-view of every aircraft on the theatre — friendlies, hostiles, missiles — displayed on a tactical map with proper military symbology. Think of it as your dedicated GCI workstation.
-
-No more guessing who's where. Click an ally, click a bogey, read the BRAA. Done.
-
-### Features
-
-- **Live tactical map** — All air contacts in real time. Green squares for friendlies, red diamonds for hostiles.
-- **BRAA tool** — Right-click an ally, left-click a bogey. Bearing, range, altitude, aspect. Updated live, with a dashed line drawn between the two on the map. Stack as many BRAAs as you need.
-- **Mission overlay** — Load your BMS .ini file. Bullseye, route, SAM threat rings, FLOT lines, IPs and nav points all appear on the map.
-- **Flight strips** — Click any contact for a floating strip with callsign, speed, heading, altitude, and package info.
-- **Radio panel** — Standard BMS frequency presets at your fingertips.
-- **Fully configurable** — Icon sizes, colors, labels, trails, vectors. Tweak everything from the options panel.
-
-### Quick start
-
-1. Download and extract the archive
-2. Run **Falcon-Eye_GCI.exe**
-3. Start Falcon BMS and launch a campaign or TE
-4. In Falcon-Eye, click **CONNECTER** — default settings (localhost:42674) work if BMS is on the same machine
-5. Optionally, click **MISSION** to load a .ini file for SAM rings and bullseye
-6. Contacts appear as soon as the mission is running
-
-### Requirements
-
-- **Falcon BMS 4.37 or 4.38** with TRTT enabled (Tacview Real-Time Telemetry — this is on by default on port 42674)
-- That's it. Everything else is bundled in the executable.
-
-### How it connects
-
-Falcon-Eye reads the Tacview Real-Time Telemetry stream that BMS broadcasts on port 42674. This is the same data stream that Tacview itself uses for real-time replay. No mods, no plugins, no DLL injection — it just listens to what BMS already sends.
-
-If you're running BMS on a different machine, just enter that machine's IP in the connection dialog instead of 127.0.0.1.
-
-### GCI workflow
-
-A typical GCI session looks like this:
-
-1. Load the mission .ini → SAM rings and bullseye appear
-2. Contacts populate as the war kicks off
-3. A flight checks in on freq → you see their green squares on the map
-4. Bogeys show up as red diamonds heading south
-5. Right-click the flight lead → left-click the bogey → BRAA window shows **"Cajun61 → MiG-29G — 270° / 35 NM / FL250 / HOT"**
-6. You call it: *"Cajun 6-1, BRAA 270, 35, angels 25, hot"*
-7. The BRAA updates live as both aircraft maneuver
 
 ---
 
 ## 🇫🇷 Français
 
-### C'est quoi ?
+### Présentation
 
-Si tu as déjà fait du GCI sur Falcon BMS, tu connais la galère. Alt-tab entre la carte 2D et un bloc-notes, BRAA approximatifs donnés au pif en regardant des points minuscules. Falcon-Eye a été créé pour régler ça.
+Falcon-Eye GCI est un outil de contrôle radar dédié aux opérateurs GCI (Ground Control Intercept) et ATC sur **Falcon BMS**. Il se connecte en temps réel au flux Tacview TRTT de BMS pour afficher tous les contacts aériens sur une carte tactique, avec symbologie militaire, calculs BRAA, bullseye et gestion radio IVC.
 
-Falcon-Eye GCI est un scope radar standalone qui se connecte directement à Falcon BMS. Il affiche tous les avions du théâtre — alliés, hostiles, missiles — sur une carte tactique avec la symbologie militaire. C'est ton poste de travail GCI dédié.
-
-Plus besoin de deviner. Tu cliques sur un allié, tu cliques sur un bogey, tu lis le BRAA. C'est fait.
+L'outil est conçu pour être utilisé sur un second écran pendant une session multijoueur — le GCI garde les yeux sur la carte pendant que les pilotes volent.
 
 ### Fonctionnalités
 
-- **Carte tactique en temps réel** — Tous les contacts aériens en direct. Carrés verts pour les alliés, losanges rouges pour les hostiles.
-- **Outil BRAA** — Clic-droit sur un allié, clic gauche sur un bogey. Bearing, range, altitude, aspect. Mis à jour en live, avec une ligne pointillée entre les deux sur la carte. Empile autant de BRAA que nécessaire.
-- **Overlay mission** — Charge ton fichier .ini BMS. Bullseye, route, anneaux de menace SAM, lignes FLOT, IP et points de nav — tout s'affiche.
-- **Flight strips** — Clique sur un contact pour une strip flottante avec callsign, vitesse, cap, altitude et infos package.
-- **Panneau radio** — Les presets de fréquence BMS standard à portée de clic.
-- **Entièrement configurable** — Taille des icônes, couleurs, labels, trails, vecteurs. Règle tout depuis le panneau options.
+- **Radar tactique temps réel** — contacts aériens live depuis BMS via Tacview TRTT (port 42674)
+- **Portée radar réaliste** — filtre ligne de mire basé sur l'altitude : `R = 1.23 × (√alt + √50)` NM. Un avion en nap de terrain (~500 ft) n'est visible qu'à ~37 NM, un avion à 30 000 ft jusqu'à ~220 NM
+- **Système BRAA** — Ctrl+clic sur un allié → clic sur la cible → bearing, range, altitude, aspect calculés et mis à jour en live, avec ligne orange sur la carte
+- **Bullseye** — affichage permanent avec cercles concentriques depuis le fichier mission .ini
+- **Overlay mission** — charge un fichier .ini BMS : bullseye, route, anneaux SAM/AAA, lignes FLOT, points de référence
+- **Panneau radio IVC** — lit les fréquences UHF/VHF directement depuis la SharedMemory BMS, presets standard accessibles en un clic, détection automatique des périphériques audio
+- **Flight strips** — fiche flottante par contact avec callsign, vitesse, cap, altitude, ID code
+- **Symbologie militaire** — carré = allié, diamant = hostile, cercle = inconnu, avec vecteurs vitesse et trails
+- **Carte vectorielle locale** — côtes, DMZ, aéroports, pistes, TACAN — aucune dépendance réseau pour la carte de base
 
-### Démarrage rapide
+### Installation
 
-1. Télécharge et extrais l'archive
-2. Lance **Falcon-Eye_GCI.exe**
-3. Démarre Falcon BMS et lance une campagne ou un TE
-4. Dans Falcon-Eye, clique **CONNECTER** — les paramètres par défaut (localhost:42674) fonctionnent si BMS tourne sur la même machine
-5. Optionnellement, clique **MISSION** pour charger un fichier .ini (anneaux SAM, bullseye)
-6. Les contacts apparaissent dès que la mission tourne
+```bash
+# Cloner ou extraire le dossier
+pip install -r requirements.txt
 
-### Prérequis
+# Lancer
+python main.py
+```
 
-- **Falcon BMS 4.37 ou 4.38** avec le TRTT activé (Tacview Real-Time Telemetry — activé par défaut sur le port 42674)
-- C'est tout. Tout le reste est inclus dans l'exécutable.
+**Dépendances Python :**
+| Package | Rôle |
+|---|---|
+| `PyQt6` | Interface graphique |
+| `PyQt6-WebEngine` | Carte Leaflet intégrée |
+| `sounddevice` | Détection périphériques audio |
 
-### Comment ça se connecte
+### Connexion à BMS
 
-Falcon-Eye lit le flux Tacview Real-Time Telemetry que BMS diffuse sur le port 42674. C'est le même flux que Tacview utilise pour le replay en temps réel. Pas de mod, pas de plugin, pas d'injection de DLL — il écoute simplement ce que BMS envoie déjà.
+1. Lancer Falcon BMS et démarrer une mission (campagne ou TE)
+2. S'assurer que **Tacview Real-Time Telemetry** est activé (activé par défaut, port 42674)
+3. Ouvrir Falcon-Eye → cliquer **CONNECTER**
+4. Entrer l'IP du serveur BMS si distant (défaut : `127.0.0.1`)
+5. Les contacts apparaissent dès que la mission tourne
 
-Si BMS tourne sur une autre machine, entre l'IP de cette machine dans le dialogue de connexion au lieu de 127.0.0.1.
+Pour la radio IVC, lancer **IVC Client.exe** depuis le launcher BMS. Les fréquences se lisent automatiquement depuis la SharedMemory BMS.
 
-### Le workflow GCI
+### Interface
 
-Une session GCI typique :
+| Élément | Action |
+|---|---|
+| **Molette** | Zoom carte |
+| **Clic gauche** sur contact | Ouvrir flight strip |
+| **Ctrl+clic** sur contact | Définir source BRAA |
+| **Clic gauche** sur cible | Compléter la paire BRAA |
+| **Clic droit** | Menu contextuel / règle de mesure |
+| **Échap** | Annuler BRAA en cours |
+| Bouton **MISSION** | Charger un .ini BMS |
+| Bouton **BULL** | Centrer sur le bullseye |
+| Bouton **ALLIÉS** | Panneau contacts amis |
+| Bouton **RADIO** | Panneau radio IVC |
+| Bouton **BRAA** | Fenêtre récap BRAA |
+| Bouton **OPTIONS** | Paramètres visuels |
 
-1. Tu charges le .ini de la mission → les anneaux SAM et le bullseye apparaissent
-2. Les contacts se remplissent quand la guerre démarre
-3. Un flight check-in sur la fréquence → tu vois leurs carrés verts sur la carte
-4. Des bogeys apparaissent en losanges rouges qui descendent vers le sud
-5. Clic-droit sur le flight lead → clic gauche sur le bogey → la fenêtre BRAA affiche **"Cajun61 → MiG-29G — 270° / 35 NM / FL250 / HOT"**
-6. Tu annonces : *"Cajun 6-1, BRAA 270, 35, angels 25, hot"*
-7. Le BRAA se met à jour en live pendant que les deux avions manœuvrent
+### Fichiers de log
+
+Windows : `%LOCALAPPDATA%\FalconEyeGCI\logs\`  
+Linux/Mac : `~/.falcon_eye_gci/logs/`
+
+---
+
+## 🇬🇧 English
+
+### Overview
+
+Falcon-Eye GCI is a dedicated radar scope for **GCI (Ground Control Intercept)** and ATC operators in **Falcon BMS**. It connects in real-time to BMS via the Tacview TRTT stream and displays all air contacts on a tactical map with military symbology, BRAA calculations, bullseye display, and IVC radio management.
+
+Built to run on a second monitor during multiplayer sessions — the GCI operator keeps eyes on the radar while pilots fly.
+
+### Features
+
+- **Real-time tactical radar** — live air contacts from BMS via Tacview TRTT (port 42674)
+- **Realistic radar range** — line-of-sight filter based on altitude: `R = 1.23 × (√alt + √50)` NM. A low-level aircraft (~500 ft) is only visible within ~37 NM; a high-altitude aircraft at 30,000 ft is visible up to ~220 NM
+- **BRAA system** — Ctrl+click on an ally → click on target → bearing, range, altitude, aspect calculated live, with an orange dashed line on the map
+- **Bullseye** — permanent display with concentric rings, loaded from mission .ini
+- **Mission overlay** — load a BMS .ini file: bullseye, route, SAM/AAA threat rings, FLOT lines, reference points
+- **IVC radio panel** — reads UHF/VHF frequencies directly from BMS SharedMemory, standard presets one-click access, automatic audio device detection
+- **Flight strips** — floating info card per contact: callsign, speed, heading, altitude, ID code
+- **Military symbology** — square = friendly, diamond = hostile, circle = unknown, with velocity vectors and trails
+- **Local vector map** — coastlines, DMZ, airports, runways, TACAN — no network dependency for base map
+
+### Installation
+
+```bash
+# Clone or extract the folder
+pip install -r requirements.txt
+
+# Run
+python main.py
+```
+
+**Python dependencies:**
+| Package | Purpose |
+|---|---|
+| `PyQt6` | GUI framework |
+| `PyQt6-WebEngine` | Embedded Leaflet map |
+| `sounddevice` | Audio device detection |
+
+### Connecting to BMS
+
+1. Launch Falcon BMS and start a mission (campaign or TE)
+2. Ensure **Tacview Real-Time Telemetry** is enabled (on by default, port 42674)
+3. Open Falcon-Eye → click **CONNECTER**
+4. Enter the BMS server IP if remote (default: `127.0.0.1`)
+5. Contacts appear as soon as the mission is running
+
+For IVC radio, launch **IVC Client.exe** from the BMS launcher. Frequencies are read automatically from BMS SharedMemory.
+
+### Controls
+
+| Element | Action |
+|---|---|
+| **Mouse wheel** | Zoom map |
+| **Left-click** on contact | Open flight strip |
+| **Ctrl+click** on contact | Set BRAA source |
+| **Left-click** on target | Complete BRAA pair |
+| **Right-click** | Context menu / ruler |
+| **Escape** | Cancel active BRAA |
+| **MISSION** button | Load a BMS .ini file |
+| **BULL** button | Center on bullseye |
+| **ALLIÉS** button | Friendly contacts panel |
+| **RADIO** button | IVC radio panel |
+| **BRAA** button | BRAA summary window |
+| **OPTIONS** button | Visual settings |
+
+### Log files
+
+Windows: `%LOCALAPPDATA%\FalconEyeGCI\logs\`  
+Linux/Mac: `~/.falcon_eye_gci/logs/`
 
 ---
 
 ## Architecture
 
 ```
-Falcon BMS (TRTT port 42674)
-       │
-       ▼
-TRTTClient ─── ACMI stream parser ─── Track objects
-       │
-       ▼
-RadarWidget (PyQt6 + Leaflet.js)
-       │
-       ├── Military symbology (■ □ ◆ ◇ ● ○ ▲)
-       ├── BRAA calculator (ally → bogey, live update)
-       ├── Mission overlay (SAM, FLOT, route, bullseye)
-       ├── Flight strips (callsign, speed, heading, altitude)
-       └── Radio panel (BMS frequency presets)
+falcon-eye/
+├── main.py                 # Entry point
+├── core/
+│   ├── trtt_client.py      # Tacview TRTT WebSocket client + Track dataclass
+│   ├── ivc_client.py       # IVC radio via BMS SharedMemory
+│   ├── shared_mem.py       # BMS SharedMemory reader (UHF/VHF freq, position)
+│   ├── mission_parser.py   # BMS .ini mission file parser
+│   └── data.py             # Geographic data (airports, coastlines, DMZ, runways)
+├── ui/
+│   ├── radar_widget.py     # Main radar (PyQt6 + QWebEngine + Leaflet.js)
+│   ├── main_window.py      # Application window, toolbar, status bar
+│   ├── connection_dialog.py
+│   ├── braa_window.py
+│   ├── allies_panel.py
+│   ├── flight_strip.py
+│   └── ivc_panel.py
+├── assets/                 # Icons, logo
+├── tests/
+│   └── test_core.py        # 163 unit tests
+└── requirements.txt
 ```
 
 ## License
 
 GNU General Public License v3.0 — see [LICENSE](LICENSE)
 
-You're free to use, modify, and redistribute this software. If you distribute modified versions, you must also share your source code under the same license.
-
 ---
 
-<p align="center">
-  <em>Made with ☕ and way too many alt-tabs by Riesu</em><br>
-  <a href="https://falcon-charts.com">falcon-charts.com</a>
-</p>
+*Falcon-Eye GCI — by [Riesu](https://falcon-charts.com) — contact@falcon-charts.com*

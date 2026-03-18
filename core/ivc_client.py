@@ -1,112 +1,122 @@
 # -*- coding: utf-8 -*-
 """
-IVCClient — Client TeamSpeak 3 ClientQuery (port 25639)
-Connects to IVC_Client.exe's ClientQuery interface to read
-radio channels, connected pilots, and who's talking.
+IVCReader — Lit les données radio IVC depuis la SharedMemory BMS.
+
+IVC BMS (IVC Client.exe) n'est PAS TeamSpeak — c'est le client radio
+intégré à Falcon BMS. Les fréquences UHF/VHF actives sont exposées via
+FalconSharedMemoryArea2. La liste des pilotes connectés n'est pas
+accessible publiquement.
+
+Ce module lit la SharedMemory pour afficher :
+- La fréquence UHF/VHF active dans le cockpit
+- Le statut BMS (actif/inactif)
 """
-import socket
-import re
-import time
 import logging
+from core.shared_mem import get_radio_data, is_bms_running, format_freq
 
 logger = logging.getLogger(__name__)
 
 
 class IVCClient:
-    """Client léger pour le ClientQuery TeamSpeak 3 (protocol texte TCP)."""
+    """
+    Lit les données radio depuis la SharedMemory BMS.
+    
+    Interface identique à l'ancien client TS3 pour compatibilité
+    avec le reste du code (main_window._poll_ivc, radar widget).
+    """
 
     def __init__(self):
-        self.sock      = None
         self.connected = False
+        self.sock      = None   # inutilisé, conservé pour compatibilité
         self.host      = ""
-        self.port      = 25639
-        self._buf      = ""
+        self.port      = 0
+        self._uhf_freq = ""
+        self._vhf_freq = ""
 
-    def _recv_until_error(self, timeout=3.0) -> str:
-        """Read from socket until we get 'error id=' response line."""
-        self.sock.settimeout(timeout)
-        data = b""
-        try:
-            while True:
-                chunk = self.sock.recv(4096)
-                if not chunk:
-                    break
-                data += chunk
-                if b"error id=" in data:
-                    break
-        except socket.timeout:
-            pass
-        return data.decode("utf-8", errors="replace")
-
-    def _send(self, cmd: str) -> str:
-        """Send command and return response (after error id= line)."""
-        try:
-            self.sock.sendall((cmd.strip() + "\n").encode())
-            return self._recv_until_error()
-        except Exception as e:
-            self.connected = False
-            raise
-
-    def _flush_banner(self):
-        """Read and discard initial banner lines after connect."""
-        try:
-            self.sock.settimeout(2)
-            data = b""
-            while True:
-                chunk = self.sock.recv(4096)
-                if not chunk:
-                    break
-                data += chunk
-                # Banner ends with "selected schandlerid=N\n"
-                if b"selected schandlerid=" in data:
-                    break
-                if b"error id=" in data:
-                    break
-            banner = data.decode("utf-8", errors="replace")
-            logger.debug(f"IVC banner: {banner.strip()[:120]}")
-            return banner
-        except socket.timeout:
-            return ""
-
-    def connect(self, host: str, port: int = 25639) -> dict:
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(5)
-            self.sock.connect((host, port))
-            banner = self._flush_banner()
-            if "TS3" not in banner and "TeamSpeak" not in banner and "selected" not in banner:
-                self.sock.close()
-                return {"status": "error",
-                        "message": f"Connexion refusée — port {port} fermé ou ClientQuery désactivé"}
-            self.host      = host
-            self.port      = port
+    def connect(self, host: str = "", port: int = 0) -> dict:
+        """
+        "Connexion" = vérifier que BMS tourne et la SM est accessible.
+        host/port ignorés (SharedMemory locale uniquement).
+        """
+        if is_bms_running():
             self.connected = True
-            logger.info(f"IVC connecté {host}:{port}")
+            logger.info("IVC: BMS SharedMemory accessible")
             return {"status": "ok"}
-        except socket.timeout:
-            return {"status": "error",
-                    "message": f"Timeout — vérifier que IVC_Client.exe tourne"}
-        except ConnectionRefusedError:
-            return {"status": "error",
-                    "message": f"Connexion refusée — port {port} fermé ou ClientQuery désactivé"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+        else:
+            self.connected = False
+            return {
+                "status": "error",
+                "message": "BMS non détecté — lance Falcon BMS d'abord"
+            }
 
     def disconnect(self):
-        try:
-            if self.sock:
-                try:
-                    self.sock.sendall(b"quit\n")
-                except Exception:
-                    pass
-                self.sock.close()
-        except Exception:
-            pass
         self.connected = False
-        self.sock      = None
+
+    def get_channels(self) -> list:
+        """
+        Lit UHF/VHF depuis la SharedMemory et les retourne comme
+        "canaux" pour compatibilité avec le panneau radio JS.
+        
+        Format retourné : liste de dicts compatibles updateRadio() JS.
+        """
+        if not is_bms_running():
+            self.connected = False
+            return []
+
+        self.connected = True
+        data = get_radio_data()
+        if not data:
+            return []
+
+        uhf = data.get("uhf_freq", "")
+        vhf = data.get("vhf_freq", "")
+        self._uhf_freq = uhf
+        self._vhf_freq = vhf
+
+        uhf_ch = data.get("uhf_channel", 0)
+        vhf_ch = data.get("vhf_channel", 0)
+
+        channels = []
+        if uhf:
+            ch_label = f"CH{uhf_ch}" if uhf_ch else "UHF"
+            channels.append({
+                "id":     "uhf",
+                "name":   f"{ch_label} {uhf}",
+                "freq":   uhf,
+                "pilots": [],
+            })
+        if vhf:
+            ch_label = f"CH{vhf_ch}" if vhf_ch else "VHF"
+            channels.append({
+                "id":     "vhf",
+                "name":   f"{ch_label} {vhf}",
+                "freq":   vhf,
+                "pilots": [],
+            })
+
+        return channels
+
+    def get_talking(self) -> str:
+        """Qui parle — non accessible via SM, toujours vide."""
+        return ""
+
+    def join_channel(self, channel_id: str) -> bool:
+        """Changer de canal — non supporté via SM."""
+        return False
+
+    def get_active_freq(self) -> str:
+        """Retourne la fréquence UHF active."""
+        return self._uhf_freq
+
+    @staticmethod
+    def _name_to_freq(name: str) -> str:
+        """Extract frequency from channel name (e.g. '225.000 GCI PRI' → '225.000')."""
+        import re
+        m = re.search(r"(\d{2,3}\.\d{1,3})", name)
+        return m.group(1) if m else ""
 
     def _parse_ts3(self, raw: str) -> list:
-        """Parse TS3 response format: key=val key=val|key=val key=val"""
+        """Compatibilité tests — parse format TS3 (non utilisé en prod)."""
         results = []
         for block in raw.strip().split("|"):
             obj = {}
@@ -121,76 +131,3 @@ class IVCClient:
             if obj:
                 results.append(obj)
         return results
-
-    def get_channels(self) -> list:
-        """Get all channels with connected pilots and talking status."""
-        if not self.connected:
-            return []
-        try:
-            # Get channel list
-            raw_ch   = self._send("channellist")
-            channels = []
-            for line in raw_ch.splitlines():
-                if "cid=" not in line:
-                    continue
-                for ch in self._parse_ts3(line):
-                    cid     = ch.get("cid", "")
-                    name    = ch.get("channel_name", f"Canal {cid}")
-                    clients = int(ch.get("total_clients", "0"))
-                    channels.append({
-                        "id":      cid,
-                        "name":    name,
-                        "freq":    self._name_to_freq(name),
-                        "clients": clients,
-                        "pilots":  [],
-                    })
-
-            # Get client list with voice flags
-            raw_cl = self._send("clientlist -voice")
-            for line in raw_cl.splitlines():
-                if "clid=" not in line:
-                    continue
-                for cl in self._parse_ts3(line):
-                    cid     = cl.get("cid", "")
-                    name    = cl.get("client_nickname", "?")
-                    talking = cl.get("client_flag_talking", "0") == "1"
-                    for ch in channels:
-                        if ch["id"] == cid:
-                            ch["pilots"].append({"name": name, "talking": talking})
-
-            return channels
-        except Exception as e:
-            logger.warning(f"IVC get_channels: {e}")
-            self.connected = False
-            return []
-
-    def get_talking(self) -> str:
-        """Get the name of the currently talking pilot."""
-        if not self.connected:
-            return ""
-        try:
-            raw = self._send("clientlist -voice")
-            for line in raw.splitlines():
-                if "client_flag_talking=1" in line:
-                    for cl in self._parse_ts3(line):
-                        if cl.get("client_flag_talking", "0") == "1":
-                            return cl.get("client_nickname", "?")
-        except Exception:
-            pass
-        return ""
-
-    def join_channel(self, channel_id: str) -> bool:
-        """Join a specific IVC channel."""
-        if not self.connected:
-            return False
-        try:
-            resp = self._send(f"clientmove clid=0 cid={channel_id}")
-            return "error id=0" in resp
-        except Exception:
-            return False
-
-    @staticmethod
-    def _name_to_freq(name: str) -> str:
-        """Extract frequency from channel name (e.g. '225.000 GCI PRI' → '225.000')."""
-        m = re.search(r"(\d{2,3}\.\d{1,3})", name)
-        return m.group(1) if m else ""

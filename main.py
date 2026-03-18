@@ -8,7 +8,7 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
 LOG_DIR = os.path.join(os.path.expanduser("~"),
-    "AppData","Local","NebulаGCI","logs") if sys.platform=="win32" \
+    "AppData","Local","FalconEyeGCI","logs") if sys.platform=="win32" \
     else os.path.join(os.path.expanduser("~"),".falcon_eye_gci","logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 

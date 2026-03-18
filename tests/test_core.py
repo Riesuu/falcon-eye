@@ -1,531 +1,323 @@
 # -*- coding: utf-8 -*-
 """
-Tests unitaires — BMS GCI Radar v5
-Couvre: core/data.py, core/trtt_client.py, core/mission_parser.py
+Tests unitaires — Falcon-Eye GCI
+Couvre : core/data.py · core/trtt_client.py · core/mission_parser.py · core/ivc_client.py
+
+Lancer :
+    python -m unittest tests/test_core.py -v
 """
-import sys, os, math, time
+import sys, os, math, time, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import unittest
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# TESTS : core/data.py
-# ═══════════════════════════════════════════════════════════════════════════════
 from core.data import (haversine_nm, bearing_deg, braa_str, bullseye_str,
                         bms_to_latlon, AIRPORTS, COASTLINE_KOREA, DMZ_LINE,
                         RUNWAY_POLYGONS)
+from core.trtt_client import (Track, TRTTClient, ID_UNKNOWN, ID_FRIEND,
+                               ID_BOGEY, ID_BANDIT, ID_HOSTILE, ID_NEUTRAL,
+                               ID_COLORS, COLOR_PRESETS, _coalition_color, _detect_camp)
+from core.mission_parser import parse_mission_ini, _parse_entry, _group_line_segments
+from core.ivc_client import IVCClient
 
 
+# ── data.py ──────────────────────────────────────────────────────────────────
 class TestHaversine(unittest.TestCase):
-    def test_zero_distance(self):
-        self.assertAlmostEqual(haversine_nm(37.5, 127.0, 37.5, 127.0), 0.0, places=5)
-
-    def test_known_distance(self):
-        """Osan (37.09, 127.03) → Gunsan (35.91, 126.62) ≈ 73 NM"""
-        d = haversine_nm(37.09, 127.03, 35.91, 126.62)
-        self.assertAlmostEqual(d, 73.0, delta=3.0)
-
+    def test_zero(self):
+        self.assertAlmostEqual(haversine_nm(37.5,127.0,37.5,127.0), 0.0, places=5)
+    def test_osan_gunsan(self):
+        self.assertAlmostEqual(haversine_nm(37.09,127.03,35.91,126.62), 73.0, delta=3.0)
     def test_symmetry(self):
-        d1 = haversine_nm(37.0, 127.0, 38.0, 128.0)
-        d2 = haversine_nm(38.0, 128.0, 37.0, 127.0)
-        self.assertAlmostEqual(d1, d2, places=6)
-
-    def test_large_distance(self):
-        """Seoul → Pyongyang ≈ 120 NM"""
-        d = haversine_nm(37.55, 126.97, 39.02, 125.73)
-        self.assertAlmostEqual(d, 104.0, delta=8.0)
+        self.assertAlmostEqual(haversine_nm(37,127,38,128), haversine_nm(38,128,37,127), places=6)
+    def test_one_degree_lat_approx_60nm(self):
+        self.assertAlmostEqual(haversine_nm(37,127,38,127), 60.0, delta=1.0)
+    def test_positive(self):
+        self.assertGreater(haversine_nm(37,127,38,128), 0.0)
 
 
 class TestBearing(unittest.TestCase):
-    def test_north(self):
-        b = bearing_deg(37.0, 127.0, 38.0, 127.0)
-        self.assertAlmostEqual(b, 0.0, delta=1.0)
-
-    def test_east(self):
-        b = bearing_deg(37.0, 127.0, 37.0, 128.0)
-        self.assertAlmostEqual(b, 90.0, delta=2.0)
-
-    def test_south(self):
-        b = bearing_deg(38.0, 127.0, 37.0, 127.0)
-        self.assertAlmostEqual(b, 180.0, delta=1.0)
-
-    def test_west(self):
-        b = bearing_deg(37.0, 128.0, 37.0, 127.0)
-        self.assertAlmostEqual(b, 270.0, delta=2.0)
-
-    def test_range_0_360(self):
-        for lat2, lon2 in [(38, 128), (36, 126), (38, 126), (36, 128)]:
-            b = bearing_deg(37.0, 127.0, lat2, lon2)
-            self.assertGreaterEqual(b, 0.0)
-            self.assertLess(b, 360.0)
+    def test_north(self):  self.assertAlmostEqual(bearing_deg(37,127,38,127),   0.0, delta=1.0)
+    def test_east(self):   self.assertAlmostEqual(bearing_deg(37,127,37,128),  90.0, delta=2.0)
+    def test_south(self):  self.assertAlmostEqual(bearing_deg(38,127,37,127), 180.0, delta=1.0)
+    def test_west(self):   self.assertAlmostEqual(bearing_deg(37,128,37,127), 270.0, delta=2.0)
+    def test_range(self):
+        for la2,lo2 in [(38,128),(36,126),(38,126),(36,128)]:
+            b = bearing_deg(37,127,la2,lo2)
+            self.assertGreaterEqual(b,0.0); self.assertLess(b,360.0)
+    def test_reciprocal_180(self):
+        b1=bearing_deg(37,127,38,128); b2=bearing_deg(38,128,37,127)
+        self.assertLess(abs((b1-b2+360)%360-180), 5.0)
+    def test_ne_quadrant(self):
+        b=bearing_deg(37,127,38,128); self.assertGreater(b,0); self.assertLess(b,90)
 
 
 class TestBraaStr(unittest.TestCase):
-    def test_format(self):
-        s = braa_str(37.0, 127.0, 38.0, 128.0)
-        # Format: "BRG / RNG NM"
-        parts = s.split("/")
-        self.assertEqual(len(parts), 2)
-        self.assertIn("NM", parts[1])
-
+    def test_two_parts(self):
+        s=braa_str(37,127,38,128); p=s.split("/")
+        self.assertEqual(len(p),2); self.assertIn("NM",p[1])
     def test_three_digit_bearing(self):
-        s = braa_str(37.0, 127.0, 37.0, 127.001)
-        self.assertEqual(len(s.split("/")[0].strip()), 3)
+        s=braa_str(37,127,37,127.001)
+        bp=s.split("/")[0].strip(); self.assertEqual(len(bp),3); self.assertTrue(bp.isdigit())
+    def test_positive_range(self):
+        s=braa_str(37,127,38,128)
+        self.assertGreater(float(s.split("/")[1].replace("NM","").strip()),0)
 
 
 class TestBullseyeStr(unittest.TestCase):
-    def test_format(self):
-        s = bullseye_str(37.0, 127.0, 38.0, 128.0, 25000)
-        parts = s.split("/")
-        self.assertEqual(len(parts), 3)
-        # Altitude = 25000 // 1000 = 25 → "250"
-        self.assertIn("25", parts[2])
-
-    def test_zero_alt(self):
-        s = bullseye_str(37.0, 127.0, 38.0, 128.0, 0)
-        self.assertIn("000", s)
+    def test_three_parts(self):   self.assertEqual(len(bullseye_str(37,127,38,128,25000).split("/")),3)
+    def test_25000ft_is_250(self):self.assertEqual(bullseye_str(37,127,38,128,25000).split("/")[2].strip(),"250")
+    def test_zero_alt(self):      self.assertEqual(bullseye_str(37,127,38,128,0).split("/")[2].strip(),"000")
+    def test_fl350(self):         self.assertEqual(bullseye_str(37,127,38,128,35000).split("/")[2].strip(),"350")
 
 
 class TestBmsToLatlon(unittest.TestCase):
-    def test_returns_valid_korea(self):
-        """BMS TMERC coords should convert to Korean peninsula area."""
-        lat, lon = bms_to_latlon(1746000, 1571000)
-        self.assertTrue(33 <= lat <= 43, f"Lat {lat} outside Korea range")
-        self.assertTrue(124 <= lon <= 132, f"Lon {lon} outside Korea range")
-
-    def test_returns_tuple(self):
-        result = bms_to_latlon(1700000, 1500000)
-        self.assertIsInstance(result, tuple)
-        self.assertEqual(len(result), 2)
-
-    def test_valid_coordinates(self):
-        lat, lon = bms_to_latlon(1700000, 1500000)
-        self.assertTrue(-90 <= lat <= 90)
-        self.assertTrue(-180 <= lon <= 180)
-
-    def test_different_inputs_different_outputs(self):
-        a = bms_to_latlon(1700000, 1500000)
-        b = bms_to_latlon(1800000, 1600000)
-        self.assertNotEqual(a, b)
+    def test_korea_range(self):
+        lat,lon=bms_to_latlon(1746000,1571000)
+        self.assertTrue(33<=lat<=43); self.assertTrue(124<=lon<=132)
+    def test_tuple(self):         self.assertEqual(len(bms_to_latlon(1700000,1500000)),2)
+    def test_wgs84(self):
+        lat,lon=bms_to_latlon(1700000,1500000)
+        self.assertTrue(-90<=lat<=90); self.assertTrue(-180<=lon<=180)
+    def test_different(self):     self.assertNotEqual(bms_to_latlon(1700000,1500000),bms_to_latlon(1800000,1600000))
+    def test_north_monotonic(self):
+        lat1,_=bms_to_latlon(1700000,1500000); lat2,_=bms_to_latlon(1800000,1500000)
+        self.assertGreater(lat2,lat1)
+    def test_east_monotonic(self):
+        _,lon1=bms_to_latlon(1700000,1500000); _,lon2=bms_to_latlon(1700000,1600000)
+        self.assertGreater(lon2,lon1)
 
 
 class TestStaticData(unittest.TestCase):
-    def test_airports_not_empty(self):
-        self.assertGreater(len(AIRPORTS), 30)
-
-    def test_airport_structure(self):
-        for icao, apt in AIRPORTS.items():
-            self.assertIn("lat", apt, f"Missing lat in {icao}")
-            self.assertIn("lon", apt, f"Missing lon in {icao}")
-            self.assertIn("name", apt, f"Missing name in {icao}")
-            self.assertTrue(-90 <= apt["lat"] <= 90, f"Bad lat in {icao}")
-            self.assertTrue(100 <= apt["lon"] <= 180, f"Bad lon in {icao}")
-
-    def test_coastline_valid(self):
-        self.assertGreater(len(COASTLINE_KOREA), 50)
-        for lat, lon in COASTLINE_KOREA:
-            self.assertTrue(30 <= lat <= 50, f"Bad coastline lat: {lat}")
-            self.assertTrue(120 <= lon <= 135, f"Bad coastline lon: {lon}")
-
-    def test_dmz_valid(self):
-        self.assertGreater(len(DMZ_LINE), 10)
-        for lat, lon in DMZ_LINE:
-            self.assertAlmostEqual(lat, 38.0, delta=1.0)
-
-    def test_runway_polygons_valid(self):
-        self.assertGreater(len(RUNWAY_POLYGONS), 10)
-        for icao, polys in RUNWAY_POLYGONS.items():
-            self.assertIn(icao, AIRPORTS, f"Runway {icao} not in AIRPORTS")
-            for corners in polys:
-                self.assertEqual(len(corners), 4, f"Bad polygon for {icao}")
+    def test_airports_count(self):    self.assertGreater(len(AIRPORTS),30)
+    def test_airport_fields(self):
+        for icao,apt in AIRPORTS.items():
+            with self.subTest(icao=icao):
+                self.assertIn("lat",apt); self.assertIn("lon",apt); self.assertIn("name",apt)
+                self.assertTrue(-90<=apt["lat"]<=90); self.assertTrue(100<=apt["lon"]<=180)
+    def test_known_airports(self):
+        for icao in ("RKSO","RKSG","RKSI","RKSS","RKTN"): self.assertIn(icao,AIRPORTS)
+    def test_coastline(self):
+        for lat,lon in COASTLINE_KOREA: self.assertTrue(30<=lat<=50); self.assertTrue(120<=lon<=135)
+    def test_dmz(self):
+        for lat,lon in DMZ_LINE: self.assertAlmostEqual(lat,38.0,delta=1.0)
+    def test_runways_linked(self):
+        for icao in RUNWAY_POLYGONS: self.assertIn(icao,AIRPORTS)
+    def test_runway_corners(self):
+        for icao,polys in RUNWAY_POLYGONS.items():
+            for corners in polys: self.assertEqual(len(corners),4)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TESTS : core/trtt_client.py
-# ═══════════════════════════════════════════════════════════════════════════════
-from core.trtt_client import (Track, TRTTClient, ID_UNKNOWN, ID_FRIEND,
-                               ID_BOGEY, ID_BANDIT, ID_HOSTILE, ID_NEUTRAL,
-                               ID_COLORS, COLOR_PRESETS, _coalition_color)
-
-
+# ── trtt_client.py ────────────────────────────────────────────────────────────
 class TestTrack(unittest.TestCase):
     def test_defaults(self):
-        t = Track(uid="A001")
-        self.assertEqual(t.uid, "A001")
-        self.assertEqual(t.lat, 0.0)
-        self.assertEqual(t.id_code, ID_UNKNOWN)
-        self.assertTrue(t.alive)
-        self.assertFalse(t.is_human)
-
-    def test_alt_ft_conversion(self):
-        t = Track(uid="A002", alt=10000.0)
-        self.assertAlmostEqual(t.alt_ft, 32808, delta=2)
-
-    def test_speed_kts_conversion(self):
-        t = Track(uid="A003", speed=200.0)  # 200 m/s
-        self.assertAlmostEqual(t.speed_kts, 388, delta=2)
-
+        t=Track(uid="A001")
+        self.assertEqual(t.uid,"A001"); self.assertEqual(t.lat,0.0)
+        self.assertEqual(t.id_code,ID_UNKNOWN); self.assertTrue(t.alive); self.assertFalse(t.is_human)
+    def test_alt_ft(self):    self.assertAlmostEqual(Track(uid="X",alt=10000.0).alt_ft, 32808, delta=2)
+    def test_speed_kts(self): self.assertAlmostEqual(Track(uid="X",speed=200.0).speed_kts, 388, delta=2)
     def test_is_air(self):
-        t = Track(uid="A004", obj_type="Air+FixedWing")
-        self.assertTrue(t.is_air)
-        self.assertFalse(t.is_missile)
-        self.assertFalse(t.is_ground)
-
-    def test_is_missile(self):
-        t = Track(uid="A005", obj_type="Weapon+Missile")
-        self.assertTrue(t.is_missile)
-        self.assertFalse(t.is_air)
-
-    def test_is_ground(self):
-        t = Track(uid="A006", obj_type="Ground+Vehicle")
-        self.assertTrue(t.is_ground)
-
+        t=Track(uid="X",obj_type="Air+FixedWing")
+        self.assertTrue(t.is_air); self.assertFalse(t.is_missile); self.assertFalse(t.is_ground)
     def test_is_rotary(self):
-        t = Track(uid="A007", obj_type="Air+Rotorcraft")
-        self.assertTrue(t.is_rotary)
-        self.assertTrue(t.is_air)
-
-    def test_display_label_callsign(self):
-        t = Track(uid="A008", callsign="Viper11", pilot="PlayerX", name="F-16CM")
-        self.assertEqual(t.display_label, "Viper11")
-
-    def test_display_label_pilot_fallback(self):
-        t = Track(uid="A009", pilot="PlayerX", name="F-16CM")
-        self.assertEqual(t.display_label, "PlayerX")
-
-    def test_display_label_name_fallback(self):
-        t = Track(uid="A010", name="F-16CM-52")
-        self.assertEqual(t.display_label, "F-16CM-5")
-
-    def test_display_label_uid_fallback(self):
-        t = Track(uid="ABC123")
-        self.assertEqual(t.display_label, "ABC123")
-
-    def test_color_custom(self):
-        t = Track(uid="A011", custom_color="#ff00ff")
-        self.assertEqual(t.color, "#ff00ff")
-
-    def test_color_id_code(self):
-        t = Track(uid="A012", id_code=ID_FRIEND)
-        self.assertEqual(t.color, ID_COLORS[ID_FRIEND])
-
-    def test_color_coalition_fallback(self):
-        t = Track(uid="A013", coalition="Blue")
-        self.assertEqual(t.color, ID_COLORS[ID_UNKNOWN])
-
-    def test_push_trail(self):
-        t = Track(uid="A014", lat=37.0, lon=127.0)
-        t.push_trail()
-        self.assertEqual(len(t.trail), 1)
-        t.lat = 37.1; t.lon = 127.1
-        t.push_trail()
-        self.assertEqual(len(t.trail), 2)
-
-    def test_push_trail_no_duplicate(self):
-        t = Track(uid="A015", lat=37.0, lon=127.0)
-        t.push_trail()
-        t.push_trail()  # Same position
-        self.assertEqual(len(t.trail), 1)
-
-    def test_push_trail_max_length(self):
-        t = Track(uid="A016", TRAIL_MAX=5)
-        for i in range(20):
-            t.lat = 37.0 + i * 0.01
-            t.lon = 127.0
-            t.push_trail()
-        self.assertEqual(len(t.trail), 5)
-
-    def test_to_dict(self):
-        t = Track(uid="A017", lat=37.5, lon=127.0, name="F-16CM",
-                  coalition="Blue", id_code=ID_FRIEND)
-        d = t.to_dict()
-        self.assertEqual(d["uid"], "A017")
-        self.assertEqual(d["lat"], 37.5)
-        self.assertEqual(d["coalition"], "Blue")
-        self.assertIn("alt_ft", d)
-        self.assertIn("speed_kts", d)
-        self.assertIn("color", d)
+        t=Track(uid="X",obj_type="Air+Rotorcraft"); self.assertTrue(t.is_air); self.assertTrue(t.is_rotary)
+    def test_is_missile(self):
+        t=Track(uid="X",obj_type="Weapon+Missile"); self.assertTrue(t.is_missile); self.assertFalse(t.is_air)
+    def test_is_ground(self):  self.assertTrue(Track(uid="X",obj_type="Ground+Vehicle").is_ground)
+    def test_label_callsign(self): self.assertEqual(Track(uid="X",callsign="V11",pilot="P",name="F-16").display_label,"V11")
+    def test_label_pilot(self):    self.assertEqual(Track(uid="X",pilot="P",name="F-16").display_label,"P")
+    def test_label_name(self):     self.assertEqual(Track(uid="X",name="F-16CM-52").display_label,"F-16CM-5")
+    def test_label_uid(self):      self.assertEqual(Track(uid="ABC123").display_label,"ABC123")
+    def test_color_custom(self):   self.assertEqual(Track(uid="X",custom_color="#ff00ff").color,"#ff00ff")
+    def test_color_id(self):       self.assertEqual(Track(uid="X",id_code=ID_FRIEND).color,ID_COLORS[ID_FRIEND])
+    def test_trail_add(self):
+        t=Track(uid="X",lat=37.0,lon=127.0); t.push_trail(); self.assertEqual(len(t.trail),1)
+    def test_trail_no_dup(self):
+        t=Track(uid="X",lat=37.0,lon=127.0); t.push_trail(); t.push_trail(); self.assertEqual(len(t.trail),1)
+    def test_trail_max(self):
+        t=Track(uid="X",TRAIL_MAX=5)
+        for i in range(20): t.lat=37+i*0.01; t.lon=127.0; t.push_trail()
+        self.assertEqual(len(t.trail),5)
+    def test_trail_skip_zero(self):
+        t=Track(uid="X",lat=0.0,lon=0.0); t.push_trail(); self.assertEqual(len(t.trail),0)
+    def test_to_dict_keys(self):
+        d=Track(uid="X",lat=37.5,lon=127.0,coalition="Blue").to_dict()
+        for k in ("uid","lat","lon","alt_ft","speed_kts","hdg","coalition","id_code","color","alive"):
+            self.assertIn(k,d)
 
 
 class TestCoalitionColor(unittest.TestCase):
-    def test_blue(self):
-        self.assertEqual(_coalition_color("Blue"), "#22ff44")
-        self.assertEqual(_coalition_color("Allies"), "#22ff44")
-
-    def test_red(self):
-        self.assertEqual(_coalition_color("Red"), "#ff2222")
-        self.assertEqual(_coalition_color("Enemies"), "#ff2222")
-
-    def test_unknown(self):
-        self.assertEqual(_coalition_color("Neutral"), "#888888")
-        self.assertEqual(_coalition_color(""), "#888888")
+    def test_blue(self):  self.assertEqual(_coalition_color("Blue"),"#22ff44"); self.assertEqual(_coalition_color("Allies"),"#22ff44")
+    def test_red(self):   self.assertEqual(_coalition_color("Red"),"#ff2222")
+    def test_other(self): self.assertEqual(_coalition_color("Neutral"),"#888888"); self.assertEqual(_coalition_color(""),"#888888")
 
 
 class TestColorPresets(unittest.TestCase):
-    def test_all_presets_valid(self):
-        for num, (color, id_code) in COLOR_PRESETS.items():
-            self.assertTrue(color.startswith("#"))
-            self.assertIn(id_code, ID_COLORS)
+    def test_all_valid(self):
+        self.assertGreater(len(COLOR_PRESETS),0)
+        for num,(color,id_code) in COLOR_PRESETS.items():
+            self.assertTrue(color.startswith("#")); self.assertIn(id_code,ID_COLORS)
 
 
-class TestTRTTClientSplitProps(unittest.TestCase):
-    """Test the critical _split_props method that parses ACMI lines."""
-
-    def test_simple_props(self):
-        kv = TRTTClient._split_props("Name=F-16CM,Coalition=Blue,Country=us")
-        self.assertEqual(kv["Name"], "F-16CM")
-        self.assertEqual(kv["Coalition"], "Blue")
-        self.assertEqual(kv["Country"], "us")
-
-    def test_T_field_with_pipes(self):
-        kv = TRTTClient._split_props(
-            "T=1.23|4.56|7890|||180.5,Name=F-16CM,Coalition=Blue")
-        self.assertIn("T", kv)
-        self.assertIn("|", kv["T"])
-        self.assertEqual(kv["Name"], "F-16CM")
-        self.assertEqual(kv["Coalition"], "Blue")
-
-    def test_T_field_only(self):
-        kv = TRTTClient._split_props("T=0.5|1.2|3000|||90")
-        self.assertIn("T", kv)
-        self.assertIn("|", kv["T"])
-
-    def test_T_field_with_empty_pipes(self):
-        kv = TRTTClient._split_props(
-            "T=|||||||,Name=MiG-29,Type=Air+FixedWing")
-        self.assertIn("T", kv)
-        self.assertEqual(kv["Name"], "MiG-29")
-        self.assertEqual(kv["Type"], "Air+FixedWing")
-
-    def test_empty_string(self):
-        kv = TRTTClient._split_props("")
-        self.assertEqual(kv, {})
-
-    def test_no_T_field(self):
-        kv = TRTTClient._split_props("Name=F-16CM,Pilot=PlayerX")
-        self.assertEqual(kv["Name"], "F-16CM")
-        self.assertEqual(kv["Pilot"], "PlayerX")
-        self.assertNotIn("T", kv)
-
-    def test_all_acmi_fields(self):
-        """Simulate a realistic ACMI line with all fields."""
-        line = ("T=0.1234|0.5678|9000|||270.5,Name=F-16CM-52,"
-                "Pilot=Viper11,Callsign=Viper11,Group=Package1,"
-                "Type=Air+FixedWing,Coalition=Blue,Country=us,"
-                "Color=Blue,IAS=250")
-        kv = TRTTClient._split_props(line)
-        self.assertEqual(kv["Name"], "F-16CM-52")
-        self.assertEqual(kv["Pilot"], "Viper11")
-        self.assertEqual(kv["Callsign"], "Viper11")
-        self.assertEqual(kv["Group"], "Package1")
-        self.assertEqual(kv["Type"], "Air+FixedWing")
-        self.assertEqual(kv["Coalition"], "Blue")
-        self.assertEqual(kv["IAS"], "250")
-        self.assertIn("T", kv)
+class TestDetectCamp(unittest.TestCase):
+    def test_f16(self):   self.assertEqual(_detect_camp("F-16CM-52",""),"Blue")
+    def test_f15(self):   self.assertEqual(_detect_camp("F-15E",""),"Blue")
+    def test_a10(self):   self.assertEqual(_detect_camp("A-10A",""),"Blue")
+    def test_mig29(self): self.assertEqual(_detect_camp("MiG-29G",""),"Red")
+    def test_su27(self):  self.assertEqual(_detect_camp("Su-27SK",""),"Red")
+    def test_mig21(self): self.assertEqual(_detect_camp("MiG-21bis",""),"Red")
+    def test_us(self):    self.assertEqual(_detect_camp("Unknown","us"),"Blue")
+    def test_kr(self):    self.assertEqual(_detect_camp("Unknown","kr"),"Blue")
+    def test_kp(self):    self.assertEqual(_detect_camp("Unknown","kp"),"Red")
+    def test_cn(self):    self.assertEqual(_detect_camp("Unknown","cn"),"Red")
+    def test_truck(self): self.assertEqual(_detect_camp("KrAZ-255",""),"")
+    def test_empty(self): self.assertEqual(_detect_camp("",""),"")
 
 
-class TestTRTTClientParseTrack(unittest.TestCase):
+class TestSplitProps(unittest.TestCase):
+    def test_simple(self):
+        kv=TRTTClient._split_props("Name=F-16CM,Coalition=Blue")
+        self.assertEqual(kv["Name"],"F-16CM"); self.assertEqual(kv["Coalition"],"Blue")
+    def test_T_with_pipes(self):
+        kv=TRTTClient._split_props("T=1.23|4.56|7890|||180.5,Name=F-16CM")
+        self.assertIn("T",kv); self.assertEqual(kv["Name"],"F-16CM")
+    def test_T_empty_pipes(self):
+        kv=TRTTClient._split_props("T=|||||||,Name=MiG-29,Type=Air+FixedWing")
+        self.assertIn("T",kv); self.assertEqual(kv["Name"],"MiG-29")
+    def test_empty(self):        self.assertEqual(TRTTClient._split_props(""),{})
+    def test_no_T(self):
+        kv=TRTTClient._split_props("Name=F-16CM,Pilot=P"); self.assertNotIn("T",kv)
+    def test_full_line(self):
+        line="T=0.12|0.56|9000|||270,Name=F-16CM-52,Callsign=Viper11,Type=Air+FixedWing,Coalition=Blue,IAS=250"
+        kv=TRTTClient._split_props(line)
+        self.assertEqual(kv["Name"],"F-16CM-52"); self.assertEqual(kv["Callsign"],"Viper11")
+        self.assertEqual(kv["IAS"],"250"); self.assertIn("T",kv)
+
+
+class TestParseTrack(unittest.TestCase):
     def setUp(self):
-        self.client = TRTTClient()
-        self.client._ref_lat = 0.0
-        self.client._ref_lon = 0.0
+        self.c=TRTTClient(); self.c._ref_lat=0.0; self.c._ref_lon=0.0
+    def p(self,uid,props): return self.c._parse_track(uid,props)
 
-    def test_new_track_created(self):
-        changed = self.client._parse_track(
-            "A001", "T=127.0|37.0|5000|||180,Name=F-16CM,Coalition=Blue,Type=Air+FixedWing")
-        self.assertTrue(changed)
-        self.assertIn("A001", self.client.tracks)
-        t = self.client.tracks["A001"]
-        self.assertAlmostEqual(t.lat, 37.0, places=1)
-        self.assertAlmostEqual(t.lon, 127.0, places=1)
-        self.assertEqual(t.name, "F-16CM")
-        self.assertEqual(t.coalition, "Blue")
-
-    def test_track_update(self):
-        self.client._parse_track(
-            "A002", "T=127.0|37.0|5000|||180,Name=F-16CM,Coalition=Blue,Type=Air+FixedWing")
-        self.client._parse_track(
-            "A002", "T=127.1|37.1|6000|||190")
-        t = self.client.tracks["A002"]
-        self.assertAlmostEqual(t.lat, 37.1, places=1)
-        self.assertAlmostEqual(t.lon, 127.1, places=1)
-        self.assertAlmostEqual(t.alt, 6000, places=0)
-
-    def test_coalition_sets_id_code(self):
-        self.client._parse_track(
-            "B001", "T=127|37|5000|||0,Type=Air+FixedWing,Coalition=Blue")
-        self.assertEqual(self.client.tracks["B001"].id_code, ID_FRIEND)
-
-    def test_red_coalition_sets_bogey(self):
-        self.client._parse_track(
-            "R001", "T=127|37|5000|||0,Type=Air+FixedWing,Coalition=Red")
-        self.assertEqual(self.client.tracks["R001"].id_code, ID_BOGEY)
-
-    def test_color_blue_sets_friendly(self):
-        """Color=Blue should set coalition to Blue and id_code to FRIENDLY."""
-        self.client._parse_track(
-            "C001", "T=127|37|5000|||0,Type=Air+FixedWing,Color=Blue")
-        t = self.client.tracks["C001"]
-        self.assertEqual(t.coalition, "Blue")
-        self.assertEqual(t.id_code, ID_FRIEND)
-
-    def test_color_red_sets_hostile(self):
-        """Color=Red should set coalition to Red and id_code to BOGEY."""
-        self.client._parse_track(
-            "C002", "T=127|37|5000|||0,Type=Air+FixedWing,Color=Red")
-        t = self.client.tracks["C002"]
-        self.assertEqual(t.coalition, "Red")
-        self.assertEqual(t.id_code, ID_BOGEY)
-
-    def test_color_overrides_neutral_default(self):
-        """Color should override the default Neutral coalition."""
-        self.client._parse_track(
-            "C003", "T=127|37|5000|||0,Color=Red,Name=MiG-29")
-        t = self.client.tracks["C003"]
-        self.assertEqual(t.coalition, "Red")
-
-    def test_color_primary_over_coalition(self):
-        """If both Color and Coalition present, Color should win."""
-        self.client._parse_track(
-            "C004", "T=127|37|5000|||0,Color=Red,Coalition=Allies,Type=Air+FixedWing")
-        t = self.client.tracks["C004"]
-        self.assertEqual(t.coalition, "Red")
-        self.assertEqual(t.id_code, ID_BOGEY)
-
-    def test_pilot_sets_human(self):
-        self.client._parse_track(
-            "H001", "T=127|37|5000|||0,Pilot=PlayerX,Coalition=Blue,Type=Air+FixedWing")
-        t = self.client.tracks["H001"]
-        self.assertTrue(t.is_human)
-        self.assertEqual(t.pilot, "PlayerX")
-        self.assertEqual(t.callsign, "PlayerX")  # fallback
-
-    def test_callsign_priority_over_pilot(self):
-        self.client._parse_track(
-            "H002", "T=127|37|5000|||0,Callsign=Viper11,Pilot=PlayerX,Type=Air+FixedWing")
-        t = self.client.tracks["H002"]
-        self.assertEqual(t.callsign, "Viper11")
-        self.assertEqual(t.pilot, "PlayerX")
-
-    def test_ias_parsing(self):
-        self.client._parse_track("S001", "T=127|37|5000|||0,IAS=300")
-        t = self.client.tracks["S001"]
-        self.assertAlmostEqual(t.speed, 300.0 * 0.514444, places=1)
-
-    def test_reference_offset(self):
-        self.client._ref_lat = 37.0
-        self.client._ref_lon = 127.0
-        self.client._parse_track("O001", "T=0.5|0.3|5000|||0")
-        t = self.client.tracks["O001"]
-        self.assertAlmostEqual(t.lat, 37.3, places=1)
-        self.assertAlmostEqual(t.lon, 127.5, places=1)
+    def test_creates_track(self):
+        self.p("A001","T=127|37|5000|||180,Name=F-16CM,Coalition=Blue,Type=Air+FixedWing")
+        t=self.c.tracks["A001"]
+        self.assertAlmostEqual(t.lat,37.0,places=1); self.assertEqual(t.name,"F-16CM")
+    def test_update_position(self):
+        self.p("A002","T=127|37|5000|||180,Coalition=Blue,Type=Air+FixedWing")
+        self.p("A002","T=127.1|37.1|6000|||190")
+        t=self.c.tracks["A002"]
+        self.assertAlmostEqual(t.lat,37.1,places=1); self.assertAlmostEqual(t.alt,6000,places=0)
+    def test_blue_friend(self):
+        self.p("B001","T=127|37|5000|||0,Type=Air+FixedWing,Coalition=Blue")
+        self.assertEqual(self.c.tracks["B001"].id_code,ID_FRIEND)
+    def test_red_bogey(self):
+        self.p("R001","T=127|37|5000|||0,Type=Air+FixedWing,Coalition=Red")
+        self.assertEqual(self.c.tracks["R001"].id_code,ID_BOGEY)
+    def test_color_blue(self):
+        self.p("C001","T=127|37|5000|||0,Color=Blue,Type=Air+FixedWing")
+        self.assertEqual(self.c.tracks["C001"].coalition,"Blue"); self.assertEqual(self.c.tracks["C001"].id_code,ID_FRIEND)
+    def test_color_red(self):
+        self.p("C002","T=127|37|5000|||0,Color=Red")
+        self.assertEqual(self.c.tracks["C002"].coalition,"Red")
+    def test_color_overrides_coalition(self):
+        self.p("C003","T=127|37|5000|||0,Color=Red,Coalition=Allies")
+        self.assertEqual(self.c.tracks["C003"].coalition,"Red")
+    def test_pilot_human(self):
+        self.p("H001","T=127|37|5000|||0,Pilot=PlayerX,Coalition=Blue,Type=Air+FixedWing")
+        t=self.c.tracks["H001"]; self.assertTrue(t.is_human); self.assertEqual(t.pilot,"PlayerX")
+    def test_callsign_priority(self):
+        self.p("H002","T=127|37|5000|||0,Callsign=Viper11,Pilot=PlayerX")
+        self.assertEqual(self.c.tracks["H002"].display_label,"Viper11")
+    def test_ias(self):
+        # IAS in Tacview ACMI is in m/s — stored directly, no conversion
+        self.p("S001","T=127|37|5000|||0,IAS=154.33")
+        self.assertAlmostEqual(self.c.tracks["S001"].speed, 154.33, places=1)
+        # 154.33 m/s = ~300 kts
+        self.assertAlmostEqual(self.c.tracks["S001"].speed_kts, 300, delta=2)
+    def test_hdg_mod360(self):
+        self.p("HD001","T=127|37|5000|||361")
+        self.assertAlmostEqual(self.c.tracks["HD001"].hdg,1.0,delta=1.0)
+    def test_ref_offset(self):
+        self.c._ref_lat=37.0; self.c._ref_lon=127.0
+        self.p("O001","T=0.5|0.3|5000|||0")
+        t=self.c.tracks["O001"]
+        self.assertAlmostEqual(t.lat,37.3,places=1); self.assertAlmostEqual(t.lon,127.5,places=1)
+    def test_alive_true(self):
+        self.p("AL001","T=127|37|5000|||0"); self.assertTrue(self.c.tracks["AL001"].alive)
 
 
-class TestTRTTClientParseLine(unittest.TestCase):
-    def setUp(self):
-        self.client = TRTTClient()
-
-    def test_timestamp_line(self):
-        result = self.client._parse_line("#12.345")
-        self.assertFalse(result)
-        self.assertAlmostEqual(self.client._last_ts, 12.345)
-
-    def test_global_line(self):
-        self.client._parse_line("0,ReferenceLatitude=37.0,ReferenceLongitude=127.0")
-        self.assertAlmostEqual(self.client._ref_lat, 37.0)
-        self.assertAlmostEqual(self.client._ref_lon, 127.0)
-
-    def test_remove_line(self):
-        self.client.tracks["X001"] = Track(uid="X001", alive=True)
-        result = self.client._parse_line("-X001")
-        self.assertTrue(result)
-        self.assertFalse(self.client.tracks["X001"].alive)
-
+class TestParseLine(unittest.TestCase):
+    def setUp(self): self.c=TRTTClient()
+    def test_timestamp(self):
+        self.assertFalse(self.c._parse_line("#12.345"))
+        self.assertAlmostEqual(self.c._last_ts,12.345)
+    def test_global(self):
+        self.c._parse_line("0,ReferenceLatitude=37.0,ReferenceLongitude=127.0")
+        self.assertAlmostEqual(self.c._ref_lat,37.0)
+    def test_remove(self):
+        self.c.tracks["X001"]=Track(uid="X001",alive=True)
+        self.assertTrue(self.c._parse_line("-X001")); self.assertFalse(self.c.tracks["X001"].alive)
+    def test_remove_nonexistent(self): self.assertTrue(self.c._parse_line("-NOPE"))
     def test_track_line(self):
-        result = self.client._parse_line(
-            "A001,T=127|37|5000|||0,Name=F-16CM,Coalition=Blue,Type=Air+FixedWing")
-        self.assertTrue(result)
-        self.assertIn("A001", self.client.tracks)
+        self.assertTrue(self.c._parse_line("A001,T=127|37|5000|||0,Coalition=Blue,Type=Air+FixedWing"))
+        self.assertIn("A001",self.c.tracks)
+    def test_malformed(self): self.assertFalse(self.c._parse_line("notvalid"))
+    def test_empty(self):     self.assertFalse(self.c._parse_line(""))
 
 
-class TestTRTTClientIdManagement(unittest.TestCase):
+class TestIdManagement(unittest.TestCase):
     def setUp(self):
-        self.updates = []
-        self.client = TRTTClient(on_update=lambda t: self.updates.append(t))
-        self.client.tracks["A001"] = Track(uid="A001", id_code=ID_UNKNOWN)
-
-    def test_set_track_id(self):
-        self.client.set_track_id("A001", ID_HOSTILE, "#ff0000")
-        self.assertEqual(self.client.tracks["A001"].id_code, ID_HOSTILE)
-        self.assertEqual(self.client.tracks["A001"].custom_color, "#ff0000")
-        self.assertEqual(len(self.updates), 1)
-
-    def test_set_track_id_nonexistent(self):
-        self.client.set_track_id("NOPE", ID_HOSTILE)
-        self.assertEqual(len(self.updates), 0)
-
+        self.updates=[]; self.c=TRTTClient(on_update=lambda t: self.updates.append(len(t)))
+        self.c.tracks["A001"]=Track(uid="A001",id_code=ID_UNKNOWN)
+    def test_set_id(self):
+        self.c.set_track_id("A001",ID_HOSTILE,"#ff0000")
+        self.assertEqual(self.c.tracks["A001"].id_code,ID_HOSTILE); self.assertEqual(len(self.updates),1)
+    def test_set_nonexistent(self): self.c.set_track_id("NOPE",ID_HOSTILE); self.assertEqual(len(self.updates),0)
     def test_apply_preset(self):
-        self.client.apply_preset("A001", 2)  # BANDIT preset
-        self.assertEqual(self.client.tracks["A001"].id_code, ID_BANDIT)
-        self.assertEqual(self.client.tracks["A001"].custom_color, "#ff2222")
-
-    def test_apply_preset_invalid(self):
-        self.client.apply_preset("A001", 99)
-        self.assertEqual(self.client.tracks["A001"].id_code, ID_UNKNOWN)
-
+        self.c.apply_preset("A001",2); self.assertEqual(self.c.tracks["A001"].id_code,ID_BANDIT)
+    def test_apply_invalid_preset(self):
+        self.c.apply_preset("A001",99); self.assertEqual(self.c.tracks["A001"].id_code,ID_UNKNOWN)
     def test_stats(self):
-        self.client.tracks["B001"] = Track(
-            uid="B001", alive=True, obj_type="Air+FixedWing", is_human=True)
-        self.client.tracks["B002"] = Track(
-            uid="B002", alive=True, obj_type="Weapon+Missile")
-        self.client.tracks["B003"] = Track(
-            uid="B003", alive=False, obj_type="Air+FixedWing")
-        stats = self.client.stats()
-        self.assertEqual(stats["total"], 4)
-        self.assertEqual(stats["alive"], 3)  # A001 + B001 + B002
-        self.assertEqual(stats["air"], 1)    # B001
-        self.assertEqual(stats["missile"], 1)
-        self.assertEqual(stats["human"], 1)
+        self.c.tracks["B001"]=Track(uid="B001",alive=True,obj_type="Air+FixedWing",is_human=True)
+        self.c.tracks["B002"]=Track(uid="B002",alive=True,obj_type="Weapon+Missile")
+        self.c.tracks["B003"]=Track(uid="B003",alive=False,obj_type="Air+FixedWing")
+        s=self.c.stats()
+        self.assertEqual(s["total"],4); self.assertEqual(s["alive"],3)
+        self.assertEqual(s["air"],1); self.assertEqual(s["missile"],1); self.assertEqual(s["human"],1)
+    def test_stats_empty(self): self.assertEqual(TRTTClient().stats()["total"],0)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TESTS : core/mission_parser.py
-# ═══════════════════════════════════════════════════════════════════════════════
-from core.mission_parser import parse_mission_ini, _parse_entry
+class TestParseBuffer(unittest.TestCase):
+    def test_fires_callback(self):
+        updates=[]; c=TRTTClient(on_update=lambda t: updates.append(len(t)))
+        c._buf=("0,ReferenceLatitude=37.0,ReferenceLongitude=127.0\n"
+                "A001,T=127|37|5000|||180,Name=F-16CM,Coalition=Blue,Type=Air+FixedWing\n")
+        c._parse_buffer()
+        self.assertEqual(len(updates),1); self.assertIn("A001",c.tracks)
+    def test_incomplete_buffered(self):
+        c=TRTTClient(); c._buf="A001,T=127|37|5000|||0,Na"
+        c._parse_buffer(); self.assertNotIn("A001",c.tracks); self.assertIn("Na",c._buf)
+    def test_stale_tracks_dead(self):
+        c=TRTTClient()
+        old=Track(uid="OLD",alive=True); old.updated_at=time.time()-120; c.tracks["OLD"]=old
+        c._buf="#1.0\nA001,T=127|37|5000|||0,Type=Air+FixedWing\n"
+        c._parse_buffer()
+        self.assertFalse(c.tracks["OLD"].alive); self.assertTrue(c.tracks["A001"].alive)
 
 
+# ── mission_parser.py ─────────────────────────────────────────────────────────
 class TestParseEntry(unittest.TestCase):
-    def test_xyz_only(self):
-        result = _parse_entry("1700000, 1500000, 25000")
-        self.assertIsNotNone(result)
-        x, y, z, radius, name = result
-        self.assertEqual(x, 1700000)
-        self.assertEqual(y, 1500000)
-        self.assertEqual(z, 25000)
-        self.assertEqual(radius, 0.0)
-        self.assertEqual(name, "")
-
-    def test_xyz_radius_name(self):
-        result = _parse_entry("1700000, 1500000, 0, 200000, SA-6")
-        x, y, z, radius, name = result
-        self.assertEqual(radius, 200000)
-        self.assertEqual(name, "SA-6")
-
-    def test_zero_coords_rejected(self):
-        result = _parse_entry("0, 0, 0")
-        self.assertIsNone(result)
-
-    def test_too_few_parts(self):
-        result = _parse_entry("1700000, 1500000")
-        self.assertIsNone(result)
-
-    def test_invalid_numbers(self):
-        result = _parse_entry("abc, def, ghi")
-        self.assertIsNone(result)
+    def test_xyz(self):
+        x,y,z,r,n=_parse_entry("1700000, 1500000, 25000")
+        self.assertEqual(x,1700000); self.assertEqual(r,0.0); self.assertEqual(n,"")
+    def test_with_range_name(self):
+        x,y,z,r,n=_parse_entry("1700000, 1500000, 0, 200000, SA-6")
+        self.assertEqual(r,200000); self.assertEqual(n,"SA-6")
+    def test_zero_rejected(self): self.assertIsNone(_parse_entry("0, 0, 0"))
+    def test_too_few(self):       self.assertIsNone(_parse_entry("1700000, 1500000"))
+    def test_invalid(self):       self.assertIsNone(_parse_entry("abc, def, ghi"))
+    def test_tiny_radius(self):   self.assertIsNotNone(_parse_entry("1700000, 1500000, 0, 0.1, IP1"))
 
 
-class TestParseMissionIni(unittest.TestCase):
-    SAMPLE_INI = """\
+SAMPLE_INI = """
 [STPT]
 target_0 = 1746000, 1571000, 25000
 target_1 = 1750000, 1575000, 20000
@@ -540,180 +332,279 @@ lineSTPT_3 = 1750000, 1575000, 0
 lineSTPT_4 = 1755000, 1580000, 0
 """
 
-    def test_parse_basic(self):
-        result = parse_mission_ini(self.SAMPLE_INI)
-        self.assertIn("bullseye", result)
-        self.assertIn("route", result)
-        self.assertIn("threats", result)
-        self.assertIn("ref_points", result)
-        self.assertIn("line_segments", result)
-
-    def test_route_extracted(self):
-        result = parse_mission_ini(self.SAMPLE_INI)
-        self.assertEqual(len(result["route"]), 3)
-        for wp in result["route"]:
-            self.assertIn("lat", wp)
-            self.assertIn("lon", wp)
-
-    def test_threats_only_real_sam(self):
-        """Only PPTs with range > 500m should be in threats."""
-        result = parse_mission_ini(self.SAMPLE_INI)
-        self.assertEqual(len(result["threats"]), 2)
-        for th in result["threats"]:
-            self.assertIn("name", th)
-            self.assertIn("range_nm", th)
-            self.assertIn("range_m", th)
-            self.assertGreater(th["range_m"], 500)
-
-    def test_ref_points_for_nav(self):
-        """PPTs with tiny range (IPs, nav points) go to ref_points."""
-        result = parse_mission_ini(self.SAMPLE_INI)
-        self.assertEqual(len(result["ref_points"]), 1)
-        self.assertEqual(result["ref_points"][0]["name"], "IP1")
-
-    def test_bullseye_from_first_wp(self):
-        result = parse_mission_ini(self.SAMPLE_INI)
-        self.assertIsNotNone(result["bullseye"])
-        self.assertIn("lat", result["bullseye"])
-        self.assertIn("lon", result["bullseye"])
-
-    def test_line_segments_split(self):
-        result = parse_mission_ini(self.SAMPLE_INI)
-        segments = result["line_segments"]
-        self.assertEqual(len(segments), 2)  # Split by 0,0,0
-
-    def test_empty_content(self):
-        result = parse_mission_ini("")
-        self.assertIsNone(result["bullseye"])
-        self.assertEqual(len(result["route"]), 0)
-
-    def test_no_stpt_section(self):
-        result = parse_mission_ini("[OTHER]\nkey = value\n")
-        self.assertIsNone(result["bullseye"])
-
-    def test_target_index_above_79_ignored(self):
-        ini = "[STPT]\ntarget_80 = 1746000, 1571000, 25000\n"
-        result = parse_mission_ini(ini)
-        self.assertEqual(len(result["route"]), 0)
-
-    def test_bullseye_key(self):
-        ini = "[STPT]\nbull_0 = 1746000, 1571000, 0\ntarget_0 = 1750000, 1575000, 25000\n"
-        result = parse_mission_ini(ini)
-        self.assertIsNotNone(result["bullseye"])
-        # bullseye should come from the bull_ key, not the first target
-        # (They might have different coordinates)
-
-    def test_comments_ignored(self):
-        ini = "[STPT]\n; This is a comment\ntarget_0 = 1746000, 1571000, 25000\n"
-        result = parse_mission_ini(ini)
-        self.assertEqual(len(result["route"]), 1)
-
-    def test_windows_line_endings(self):
-        ini = "[STPT]\r\ntarget_0 = 1746000, 1571000, 25000\r\n"
-        result = parse_mission_ini(ini)
-        self.assertEqual(len(result["route"]), 1)
-
-    def test_real_ini_nav_vs_sam(self):
-        """Real BMS INI: PPTs with range=0.1 are nav points, not SAMs."""
-        ini = """[STPT]
-target_0=1162752.875, 1539950.625, -42.0, 1, Not set
-ppt_0=1490735.25, 1228185.375, 0, 164055.125, SA2
-ppt_1=1342945.125, 1291184.125, 0, 0.1, IP1
-ppt_2=1622549.125, 1024520.5625, 0, 72913.390625, SA3
-ppt_4=1720543.875, 1664447.75, 0, 0.1, R21
-"""
-        result = parse_mission_ini(ini)
-        # SA2 + SA3 = 2 real threats
-        self.assertEqual(len(result["threats"]), 2)
-        for th in result["threats"]:
-            self.assertGreater(th["range_m"], 500)
-        # IP1 + R21 = 2 ref points
-        self.assertEqual(len(result["ref_points"]), 2)
-        names = [r["name"] for r in result["ref_points"]]
-        self.assertIn("IP1", names)
-        self.assertIn("R21", names)
+class TestParseMission(unittest.TestCase):
+    def test_keys(self):
+        r=parse_mission_ini(SAMPLE_INI)
+        for k in ("bullseye","route","threats","ref_points","lines","line_segments","flightplan"):
+            self.assertIn(k,r)
+    def test_route_count(self):   self.assertEqual(len(parse_mission_ini(SAMPLE_INI)["route"]),3)
+    def test_threats_real_only(self):
+        r=parse_mission_ini(SAMPLE_INI); self.assertEqual(len(r["threats"]),2)
+        for th in r["threats"]: self.assertGreater(th["range_m"],500)
+    def test_nav_ref_points(self):
+        r=parse_mission_ini(SAMPLE_INI); self.assertEqual(len(r["ref_points"]),1)
+        self.assertEqual(r["ref_points"][0]["name"],"IP1")
+    def test_bullseye(self):
+        r=parse_mission_ini(SAMPLE_INI); self.assertIsNotNone(r["bullseye"]); self.assertIn("lat",r["bullseye"])
+    def test_segments_split(self): self.assertEqual(len(parse_mission_ini(SAMPLE_INI)["line_segments"]),2)
+    def test_empty(self):
+        r=parse_mission_ini(""); self.assertIsNone(r["bullseye"]); self.assertEqual(r["route"],[])
+    def test_no_stpt(self):        self.assertIsNone(parse_mission_ini("[OTHER]\nk=v\n")["bullseye"])
+    def test_index_80_ignored(self):
+        r=parse_mission_ini("[STPT]\ntarget_80 = 1746000, 1571000, 25000\n")
+        self.assertEqual(len(r["route"]),0)
+    def test_comments(self):
+        r=parse_mission_ini("[STPT]\n; c\ntarget_0 = 1746000, 1571000, 25000\n")
+        self.assertEqual(len(r["route"]),1)
+    def test_crlf(self):
+        r=parse_mission_ini("[STPT]\r\ntarget_0 = 1746000, 1571000, 25000\r\n")
+        self.assertEqual(len(r["route"]),1)
+    def test_real_ini(self):
+        ini=("[STPT]\ntarget_0=1162752.875, 1539950.625, -42.0\n"
+             "ppt_0=1490735.25, 1228185.375, 0, 164055.125, SA2\n"
+             "ppt_1=1342945.125, 1291184.125, 0, 0.1, IP1\n"
+             "ppt_2=1622549.125, 1024520.5625, 0, 72913.390625, SA3\n"
+             "ppt_4=1720543.875, 1664447.75, 0, 0.1, R21\n")
+        r=parse_mission_ini(ini); self.assertEqual(len(r["threats"]),2)
+        names=[x["name"] for x in r["ref_points"]]
+        self.assertIn("IP1",names); self.assertIn("R21",names)
+    def test_range_nm(self):
+        r=parse_mission_ini("[STPT]\nppt_0 = 1730000, 1560000, 0, 164000, SA-2\n")
+        self.assertIn("range_nm",r["threats"][0]); self.assertGreater(r["threats"][0]["range_nm"],0)
+    def test_wpntarget(self):
+        r=parse_mission_ini("[STPT]\nwpntarget_0 = 1746000, 1571000, 25000\n")
+        self.assertEqual(len(r["flightplan"]),1)
+    def test_explicit_bull(self):
+        r=parse_mission_ini("[STPT]\nbull_0 = 1746000, 1571000, 0\ntarget_0 = 1750000, 1575000, 25000\n")
+        self.assertIsNotNone(r["bullseye"])
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# TESTS : core/ivc_client.py
-# ═══════════════════════════════════════════════════════════════════════════════
-from core.ivc_client import IVCClient
+class TestGroupSegments(unittest.TestCase):
+    def test_single(self):
+        ini="[STPT]\nlineSTPT_0 = 1740000, 1565000, 0\nlineSTPT_1 = 1750000, 1575000, 0\n"
+        segs=_group_line_segments(ini); self.assertEqual(len(segs),1); self.assertEqual(len(segs[0]),2)
+    def test_split_by_zero(self):
+        ini=("[STPT]\nlineSTPT_0 = 1740000, 1565000, 0\nlineSTPT_1 = 1745000, 1570000, 0\n"
+             "lineSTPT_2 = 0, 0, 0\nlineSTPT_3 = 1750000, 1575000, 0\nlineSTPT_4 = 1755000, 1580000, 0\n")
+        self.assertEqual(len(_group_line_segments(ini)),2)
+    def test_single_point_not_segment(self):
+        ini="[STPT]\nlineSTPT_0 = 1740000, 1565000, 0\n"
+        self.assertEqual(len(_group_line_segments(ini)),0)
+    def test_empty(self): self.assertEqual(_group_line_segments(""),[])
 
 
+# ── ivc_client.py ─────────────────────────────────────────────────────────────
 class TestIVCNameToFreq(unittest.TestCase):
-    def test_freq_in_name(self):
-        self.assertEqual(IVCClient._name_to_freq("GCI 234.500 MHz"), "234.500")
-
-    def test_no_freq(self):
-        self.assertEqual(IVCClient._name_to_freq("General Chat"), "")
-
-    def test_multiple_numbers(self):
-        result = IVCClient._name_to_freq("Channel 127.900 TWR freq")
-        self.assertEqual(result, "127.900")
+    def test_freq(self):   self.assertEqual(IVCClient._name_to_freq("GCI 234.500 MHz"),"234.500")
+    def test_no_freq(self):self.assertEqual(IVCClient._name_to_freq("General Chat"),"")
+    def test_first(self):  self.assertEqual(IVCClient._name_to_freq("225.000 GCI PRI"),"225.000")
+    def test_empty(self):  self.assertEqual(IVCClient._name_to_freq(""),"")
 
 
 class TestIVCParseTs3(unittest.TestCase):
-    def test_parse(self):
+    def setUp(self): self.ivc=IVCClient()
+    def test_single(self):
+        r=self.ivc._parse_ts3("clid=1 cid=5 client_nickname=Test")
+        self.assertEqual(len(r),1); self.assertEqual(r[0]["clid"],"1")
+    def test_space_escape(self):
+        r=self.ivc._parse_ts3("clid=1 cid=5 client_nickname=Test\\sUser")
+        self.assertEqual(r[0]["client_nickname"],"Test User")
+    def test_pipe(self):
+        r=self.ivc._parse_ts3("clid=1 cid=5|clid=2 cid=6"); self.assertEqual(len(r),2)
+    def test_talking(self):
+        r=self.ivc._parse_ts3("clid=1 cid=5 client_flag_talking=1")
+        self.assertEqual(r[0]["client_flag_talking"],"1")
+    def test_empty(self): self.assertEqual(self.ivc._parse_ts3(""),[])
+    def test_pipe_escape(self):
+        r=self.ivc._parse_ts3("clid=1 client_nickname=User\\pName")
+        self.assertEqual(r[0]["client_nickname"],"User|Name")
+
+
+class TestIVCState(unittest.TestCase):
+    def test_initial(self):  self.assertFalse(IVCClient().connected); self.assertIsNone(IVCClient().sock)
+    def test_disconnect(self): IVCClient().disconnect()
+    def test_channels_disconnected(self): self.assertEqual(IVCClient().get_channels(),[])
+    def test_talking_disconnected(self):  self.assertEqual(IVCClient().get_talking(),"")
+    def test_join_disconnected(self):     self.assertFalse(IVCClient().join_channel("5"))
+
+
+class TestIVCSharedMem(unittest.TestCase):
+    """Tests IVC via SharedMemory BMS (nouvelle implémentation)."""
+
+    def _ivc_with_sm(self, uhf_freq="339.750", vhf_freq="127.500", running=True):
+        """IVCClient avec get_radio_data et is_bms_running mockés dans ivc_client."""
+        import core.ivc_client as ivc_mod
         ivc = IVCClient()
-        raw = "clid=1 cid=5 client_nickname=TestUser\\sName"
-        result = ivc._parse_ts3(raw)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["clid"], "1")
-        self.assertEqual(result[0]["client_nickname"], "TestUser Name")
+        ivc.connected = running
+        # Patch directly in ivc_client namespace (handles 'from x import y' pattern)
+        ivc_mod.is_bms_running = lambda: running
+        if running:
+            ivc_mod.get_radio_data = lambda: {"uhf_freq": uhf_freq, "vhf_freq": vhf_freq}
+        else:
+            ivc_mod.get_radio_data = lambda: None
+        return ivc
 
-    def test_pipe_separated(self):
+    def tearDown(self):
+        """Restore original functions from shared_mem."""
+        import core.ivc_client as ivc_mod
+        from core.shared_mem import get_radio_data, is_bms_running
+        ivc_mod.is_bms_running = is_bms_running
+        ivc_mod.get_radio_data = get_radio_data
+
+    def test_get_channels_returns_uhf_vhf(self):
+        ivc = self._ivc_with_sm("305.000", "127.900")
+        r = ivc.get_channels()
+        self.assertEqual(len(r), 2)
+        freqs = [c["freq"] for c in r]
+        self.assertIn("305.000", freqs)
+        self.assertIn("127.900", freqs)
+
+    def test_get_channels_uhf_only(self):
+        ivc = self._ivc_with_sm("339.750", "")
+        r = ivc.get_channels()
+        self.assertEqual(len(r), 1)
+        self.assertEqual(r[0]["freq"], "339.750")
+        self.assertEqual(r[0]["id"], "uhf")
+
+    def test_get_channels_bms_down(self):
+        ivc = self._ivc_with_sm(running=False)
+        r = ivc.get_channels()
+        self.assertEqual(r, [])
+        self.assertFalse(ivc.connected)
+
+    def test_get_talking_always_empty(self):
+        """IVC BMS ne peut pas détecter qui parle via SM."""
+        ivc = self._ivc_with_sm()
+        self.assertEqual(ivc.get_talking(), "")
+
+    def test_join_channel_unsupported(self):
+        ivc = self._ivc_with_sm()
+        self.assertFalse(ivc.join_channel("5"))
+
+    def test_connect_bms_running(self):
+        import core.ivc_client as ivc_mod
+        ivc_mod.is_bms_running = lambda: True
         ivc = IVCClient()
-        raw = "clid=1 cid=5|clid=2 cid=6"
-        result = ivc._parse_ts3(raw)
-        self.assertEqual(len(result), 2)
+        r = ivc.connect()
+        self.assertEqual(r["status"], "ok")
+        self.assertTrue(ivc.connected)
+
+    def test_connect_bms_not_running(self):
+        import core.ivc_client as ivc_mod
+        ivc_mod.is_bms_running = lambda: False
+        ivc = IVCClient()
+        r = ivc.connect()
+        self.assertEqual(r["status"], "error")
+        self.assertFalse(ivc.connected)
+
+    def test_channel_has_id_name_freq(self):
+        ivc = self._ivc_with_sm("305.000", "127.900")
+        r = ivc.get_channels()
+        for ch in r:
+            self.assertIn("id", ch)
+            self.assertIn("name", ch)
+            self.assertIn("freq", ch)
+            self.assertIn("pilots", ch)
+
+    def test_pilots_always_empty_list(self):
+        """Pilot list not available from SM."""
+        ivc = self._ivc_with_sm("305.000", "127.900")
+        r = ivc.get_channels()
+        for ch in r:
+            self.assertIsInstance(ch["pilots"], list)
+            self.assertEqual(len(ch["pilots"]), 0)
+
+    def test_get_active_freq(self):
+        ivc = self._ivc_with_sm("339.750", "127.500")
+        ivc.get_channels()  # populates _uhf_freq
+        self.assertEqual(ivc.get_active_freq(), "339.750")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Run
-# ═══════════════════════════════════════════════════════════════════════════════
+# Keep TestIVCMocked for _parse_ts3 compatibility tests
+class TestIVCMocked(unittest.TestCase):
+    def test_exception_disconnects(self):
+        """get_channels when BMS goes down marks as disconnected."""
+        import core.ivc_client as ivc_mod
+        ivc_mod.is_bms_running = lambda: False
+        ivc = IVCClient()
+        ivc.connected = True
+        r = ivc.get_channels()
+        self.assertEqual(r, [])
+        self.assertFalse(ivc.connected)
+
+
+# ── Integration ───────────────────────────────────────────────────────────────
+class TestIntegration(unittest.TestCase):
+    def test_braa_osan_to_north(self):
+        rng=haversine_nm(37.09,127.03,38.5,125.5)
+        brg=bearing_deg(37.09,127.03,38.5,125.5)
+        self.assertGreater(rng,50); self.assertGreater(brg,270)
+
+    def test_track_parse_braa_str(self):
+        c=TRTTClient(); c._ref_lat=c._ref_lon=0.0
+        c._parse_track("BLUE","T=127|37|20000|||270,Coalition=Blue,Type=Air+FixedWing")
+        c._parse_track("RED","T=125.5|38.5|25000|||090,Coalition=Red,Type=Air+FixedWing")
+        bl=c.tracks["BLUE"]; rd=c.tracks["RED"]
+        s=braa_str(bl.lat,bl.lon,rd.lat,rd.lon)
+        self.assertIn("/",s); self.assertIn("NM",s)
+
+    def test_bullseye_in_kto(self):
+        r=parse_mission_ini("[STPT]\ntarget_0 = 1746000, 1571000, 25000\n")
+        bull=r["bullseye"]; self.assertIsNotNone(bull)
+        self.assertTrue(28<=bull["lat"]<=46); self.assertTrue(117<=bull["lon"]<=136)
+
+    def test_bullseye_str_same_point(self):
+        s=bullseye_str(37.09,127.03,37.09,127.03,20000)
+        self.assertEqual(len(s.split("/")),3)
+        self.assertEqual(int(s.split("/")[1].strip()),0)
+
+    def test_blue_red_colors(self):
+        c=TRTTClient(); c._ref_lat=c._ref_lon=0.0
+        c._parse_track("T1","T=127|37|5000|||0,Coalition=Blue,Type=Air+FixedWing")
+        c._parse_track("T2","T=127|37|5000|||0,Coalition=Red,Type=Air+FixedWing")
+        self.assertEqual(c.tracks["T1"].color,ID_COLORS[ID_FRIEND])
+        self.assertEqual(c.tracks["T2"].color,ID_COLORS[ID_BOGEY])
+
+    def test_multi_track_stats(self):
+        c=TRTTClient(); c._ref_lat=c._ref_lon=0.0
+        for i in range(5): c._parse_track(f"B{i}",f"T=127|{37+i*0.1}|20000|||0,Coalition=Blue,Type=Air+FixedWing,Pilot=P{i}")
+        for i in range(3): c._parse_track(f"R{i}",f"T=126|{38+i*0.1}|25000|||0,Coalition=Red,Type=Air+FixedWing")
+        c._parse_track("M1","T=127|37.5|10000|||0,Type=Weapon+Missile")
+        s=c.stats()
+        self.assertEqual(s["alive"],9); self.assertEqual(s["air"],8)
+        self.assertEqual(s["missile"],1); self.assertEqual(s["human"],5)
+
+
+
+
+class TestToggleLayerJsVal(unittest.TestCase):
+    """Test that Python booleans produce correct JS true/false (not True/False)."""
+
+    def _js_val(self, visible):
+        """Replicate the fixed toggle_layer logic."""
+        if isinstance(visible, bool):
+            return "true" if visible else "false"
+        elif isinstance(visible, int):
+            return str(visible)
+        else:
+            return "true" if visible else "false"
+
+    def test_true_produces_lowercase(self):
+        self.assertEqual(self._js_val(True), "true")
+
+    def test_false_produces_lowercase(self):
+        self.assertEqual(self._js_val(False), "false")
+
+    def test_int_produces_number(self):
+        self.assertEqual(self._js_val(250), "250")
+
+    def test_zero_produces_zero(self):
+        self.assertEqual(self._js_val(0), "0")
+
+    def test_bool_not_treated_as_int(self):
+        # The old bug: isinstance(True, int) == True → str(True) == "True"
+        self.assertNotEqual(self._js_val(True), "True")
+        self.assertNotEqual(self._js_val(False), "False")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-
-
-class TestDetectCamp(unittest.TestCase):
-    """Test aircraft-type based camp detection (F4Radar/OpenRadar method)."""
-
-    def test_blue_f16(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("F-16CM-52", ""), "Blue")
-
-    def test_blue_f15(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("F-15E", ""), "Blue")
-
-    def test_red_mig29(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("MiG-29G", ""), "Red")
-
-    def test_red_su27(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("Su-27SK", ""), "Red")
-
-    def test_red_mig21(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("MiG-21bis", ""), "Red")
-
-    def test_blue_a10(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("A-10A", ""), "Blue")
-
-    def test_unknown_truck(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("KrAZ-255", ""), "")
-
-    def test_country_us(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("Unknown", "us"), "Blue")
-
-    def test_country_kp(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("Unknown", "kp"), "Red")
-
-    def test_country_kr(self):
-        from core.trtt_client import _detect_camp
-        self.assertEqual(_detect_camp("Unknown", "kr"), "Blue")

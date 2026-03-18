@@ -325,7 +325,7 @@ class TRTTClient:
                 t.id_code = ID_BOGEY
 
         if "IAS" in kv:
-            try: t.speed = float(kv["IAS"]) * 0.514444
+            try: t.speed = float(kv["IAS"])          # Tacview IAS déjà en m/s
             except (ValueError, TypeError): pass
 
         # Debug: log new tracks with ALL received keys

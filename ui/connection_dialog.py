@@ -98,11 +98,13 @@ class ConnectionDialog(QDialog):
         lay.addWidget(grp_sm)  # empty optional section
 
         # ── IVC ──
-        grp2 = QGroupBox("IVC / TeamSpeak 3")
+        grp2 = QGroupBox("IVC / Radio BMS")
         f2   = QFormLayout(grp2); f2.setSpacing(8)
-        self.chk_ivc = QCheckBox("Activer IVC")
+        self.chk_ivc = QCheckBox("Activer IVC (lit la SharedMemory BMS)")
         f2.addRow("", self.chk_ivc)
-        # IVC port removed - using SharedMemory instead
+        lbl_info = QLabel("Lit UHF/VHF depuis BMS — aucune config réseau requise")
+        lbl_info.setStyleSheet("color:#557755; font-size:9pt; font-style:italic;")
+        f2.addRow("", lbl_info)
         lay.addWidget(grp2)
 
         # Boutons

@@ -144,13 +144,6 @@ class MainWindow(QMainWindow):
         tb1.addWidget(self.btn_import)
         tb1.addSeparator()
 
-        tb1.addWidget(_lbl(" PORTÉE:"))
-        self.scale_combo = QComboBox()
-        for nm in [30, 50, 80, 100, 150, 200, 300, 400]:
-            self.scale_combo.addItem(f"{nm} NM", nm)
-        self.scale_combo.setCurrentIndex(4)
-        self.scale_combo.currentIndexChanged.connect(self._on_scale)
-        tb1.addWidget(self.scale_combo)
         tb1.addSeparator()
 
         btn_bull = QPushButton("◎ BULL"); btn_bull.clicked.connect(self._center_bull)
@@ -185,19 +178,19 @@ class MainWindow(QMainWindow):
         self._layer_chks = {}
 
         layer_defs = [
-            ("air_blue", "BLUE"), ("air_red", "RED"),
-            ("missiles", "AAM"),
-            ("labels",   "APT"), ("apt_icao", "ICAO"), ("apt_name", "NOM"),
-            ("runways",  "RWY"),
-            ("trails",   "TRAIL"),
-            ("velocity", "VEC"),
-            ("sam_rings","SAM"), ("flot", "FLOT"),
-            ("route",    "ROUTE"),
-            ("dmz",      "DMZ"),
+            ("missiles",   "AAM"),
+            ("labels",     "APT"),  ("apt_icao", "ICAO"), ("apt_name", "NOM"),
+            ("runways",    "RWY"),
+            ("trails",     "TRAIL"),
+            ("velocity",   "VEC"),
+            ("sam_rings",  "SAM"), ("flot", "FLOT"),
+            ("route",      "ROUTE"),
+            ("dmz",        "DMZ"),
         ]
         for layer, lbl3 in layer_defs:
-            chk = QCheckBox(lbl3); chk.setChecked(True)
-            chk.stateChanged.connect(lambda s, l=layer: self.radar.toggle_layer(l, bool(s)))
+            chk = QCheckBox(lbl3)
+            chk.setChecked(True)
+            chk.toggled.connect(lambda checked, l=layer: self.radar.toggle_layer(l, checked))
             self._layer_chks[layer] = chk
             tb2.addWidget(chk)
 
@@ -316,8 +309,68 @@ class MainWindow(QMainWindow):
             self._bridge.bms_status.emit(False, f"Échec {host}:{port}")
 
     def _connect_ivc(self, host=None, port=None):
-        """Radio panel uses default BMS presets - no external connection needed."""
-        self._bridge.ivc_status.emit(True, "Presets BMS")
+        """Connect IVC — reads UHF/VHF from BMS SharedMemory (no TS3 needed)."""
+        from core.ivc_client import IVCClient
+
+        # Stop any existing IVC session
+        if self._ivc:
+            self._ivc.disconnect()
+            self._ivc = None
+        if hasattr(self, "_ivc_poll_timer") and self._ivc_poll_timer:
+            self._ivc_poll_timer.stop()
+
+        self._ivc = IVCClient()
+        result = self._ivc.connect()
+        if result.get("status") == "ok":
+            self._ivc_conn = True
+            self._bridge.ivc_status.emit(True, "IVC BMS")
+            # Poll SharedMemory every second for freq updates
+            self._ivc_poll_timer = QTimer(self)
+            self._ivc_poll_timer.timeout.connect(self._poll_ivc)
+            self._ivc_poll_timer.start(2000)
+        else:
+            msg = result.get("message", "BMS non détecté")
+            self._bridge.ivc_status.emit(False, msg)
+            # Retry every 5s until BMS starts
+            self._ivc_poll_timer = QTimer(self)
+            self._ivc_poll_timer.timeout.connect(self._retry_ivc)
+            self._ivc_poll_timer.start(5000)
+
+    def _poll_ivc(self):
+        """Poll BMS SharedMemory every 2s for UHF/VHF frequency updates."""
+        if not self._ivc:
+            return
+        try:
+            channels = self._ivc.get_channels()
+            if not self._ivc.connected:
+                # Only emit if was previously connected (avoid repeated status updates)
+                if getattr(self, '_ivc_was_connected', True):
+                    self._bridge.ivc_status.emit(False, "BMS arrêté")
+                    self._ivc_was_connected = False
+                return
+            if not getattr(self, '_ivc_was_connected', False):
+                self._bridge.ivc_status.emit(True, "IVC BMS")
+                self._ivc_was_connected = True
+            active_freq = channels[0]["freq"] if channels else ""
+            active_name = channels[0]["name"] if channels else ""
+            self.radar.update_ivc(channels, active_freq, active_name)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"IVC poll: {e}")
+
+    def _retry_ivc(self):
+        """Retry IVC connection every 5s until BMS SharedMemory is available."""
+        from core.ivc_client import IVCClient
+        if not self._ivc:
+            self._ivc = IVCClient()
+        result = self._ivc.connect()
+        if result.get("status") == "ok":
+            self._ivc_conn = True
+            self._bridge.ivc_status.emit(True, "IVC BMS")
+            if hasattr(self, "_ivc_poll_timer") and self._ivc_poll_timer:
+                self._ivc_poll_timer.stop()
+            self._ivc_poll_timer = QTimer(self)
+            self._ivc_poll_timer.timeout.connect(self._poll_ivc)
+            self._ivc_poll_timer.start(2000)
 
     def _init_sm(self):
         pass  # SM removed for GCI
@@ -356,6 +409,8 @@ class MainWindow(QMainWindow):
     def _show_options(self):
         """Open the JS options panel inside the radar map."""
         self.radar._js("openOptions();")
+        # Push fresh audio device list immediately when options panel opens
+        self.radar._push_audio_devices()
 
     # ── Import mission ────────────────────────────────────────────────────────
     def _import_mission(self):
@@ -391,8 +446,9 @@ class MainWindow(QMainWindow):
             st = self._trtt.stats()
             n_rd = sum(1 for t in tracks.values()
                        if t.alive and t.coalition in ("Red","Enemies") and t.is_air)
-            self.lbl_tracks.setText(
-                f"BLU:{st['air']}  RED:{n_rd}  AAM:{st['missile']}  HUM:{st['human']}")
+            txt = f"BLU:{st['air']}  RED:{n_rd}  AAM:{st['missile']}  HUM:{st['human']}"
+            if self.lbl_tracks.text() != txt:
+                self.lbl_tracks.setText(txt)
 
     @pyqtSlot(dict)
     def _on_ownship(self, data):
@@ -400,32 +456,37 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(bool, str)
     def _on_bms_status(self, connected, msg):
-        if connected:
-            self._connected = True
-            self._dot_bms.setStyleSheet("color:#00ff88;font-size:12pt;padding:0 2px;")
-            self.lbl_bms.setText(f"BMS : {msg}")
-            self.lbl_bms.setStyleSheet("color:#00ff88;font-family:Consolas;font-size:9pt;padding:0 5px;")
-        else:
-            self._connected = False
-            color = "#ff4444" if "Échec" in msg else "#ffdd00" if "onnex" in msg else "#555555"
-            self._dot_bms.setStyleSheet(f"color:{color};font-size:12pt;padding:0 2px;")
-            self.lbl_bms.setText(f"BMS : {msg}")
-            self.lbl_bms.setStyleSheet(f"color:{color};font-family:Consolas;font-size:9pt;padding:0 5px;")
-        self._update_conn_btn()
+        was_connected = self._connected
+        self._connected = connected
+        # Guard: only update Qt widgets if state actually changed
+        new_state = (connected, msg)
+        if getattr(self, '_last_bms_state', None) != new_state:
+            self._last_bms_state = new_state
+            if connected:
+                self._dot_bms.setStyleSheet("color:#00ff88;font-size:12pt;padding:0 2px;")
+                self.lbl_bms.setText(f"BMS : {msg}")
+                self.lbl_bms.setStyleSheet("color:#00ff88;font-family:Consolas;font-size:9pt;padding:0 5px;")
+            else:
+                color = "#ff4444" if "Échec" in msg else "#ffdd00" if "onnex" in msg else "#555555"
+                self._dot_bms.setStyleSheet(f"color:{color};font-size:12pt;padding:0 2px;")
+                self.lbl_bms.setText(f"BMS : {msg}")
+                self.lbl_bms.setStyleSheet(f"color:{color};font-family:Consolas;font-size:9pt;padding:0 5px;")
+        if connected != was_connected:
+            self._update_conn_btn()
 
     @pyqtSlot(bool, str)
     def _on_ivc_status(self, connected, msg):
-        if connected:
-            self._dot_ivc.setStyleSheet("color:#00ff88;font-size:12pt;padding:0 2px;")
-            self.lbl_ivc_sb.setText(f"IVC : {msg}")
-            self.lbl_ivc_sb.setStyleSheet("color:#00ff88;font-family:Consolas;font-size:9pt;padding:0 5px;")
-        else:
-            self._dot_ivc.setStyleSheet("color:#555555;font-size:12pt;padding:0 2px;")
-            self.lbl_ivc_sb.setText(f"IVC : {msg}")
-            self.lbl_ivc_sb.setStyleSheet("color:#555555;font-family:Consolas;font-size:9pt;padding:0 5px;")
+        # Guard: only update Qt widgets if state actually changed (setStyleSheet forces full repaint)
+        new_state = (connected, msg)
+        if getattr(self, '_last_ivc_state', None) == new_state:
+            return
+        self._last_ivc_state = new_state
+        color = "#00ff88" if connected else "#555555"
+        self._dot_ivc.setStyleSheet(f"color:{color};font-size:12pt;padding:0 2px;")
+        self.lbl_ivc_sb.setText(f"IVC : {msg}")
+        self.lbl_ivc_sb.setStyleSheet(f"color:{color};font-family:Consolas;font-size:9pt;padding:0 5px;")
 
-    def _on_scale(self, _):
-        self.radar.set_scale(self.scale_combo.currentData())
+
 
     @pyqtSlot(float, float)
     def _on_cursor(self, lat, lon):
@@ -436,7 +497,9 @@ class MainWindow(QMainWindow):
     def _update_clock(self):
         from PyQt6.QtCore import QDateTime
         t = QDateTime.currentDateTimeUtc()
-        self.lbl_clock.setText(t.toString("HH:mm:ss") + "Z")
+        txt = t.toString("HH:mm:ss") + "Z"
+        if self.lbl_clock.text() != txt:
+            self.lbl_clock.setText(txt)
 
     def _center_bull(self):
         bull = self.radar.bullseye

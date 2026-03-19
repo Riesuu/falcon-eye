@@ -117,33 +117,6 @@ No installation, no Python, no dependencies. Double-click and go.
 
 ---
 
-## Crédits / Credits
-
-<p align="center">
-  <img src="assets/credits_banner.png" width="500" alt="Credits">
-</p>
-
-**Développé par / Developed by [Riesu](https://falcon-charts.com)**
-
-| | |
-|---|---|
-| 🌐 Falcon-Eye | [eye.falcon-charts.com](https://eye.falcon-charts.com) |
-| 🌐 Falcon Charts | [falcon-charts.com](https://falcon-charts.com) |
-| 🌐 Falcon-Pad | [pad.falcon-charts.com](https://pad.falcon-charts.com) |
-| 🌐 Falcon BMS | [falcon-bms.com](https://www.falcon-bms.com) |
-| 🌐 FFW01 | [ffw-01.fr](https://www.ffw-01.fr) |
-| 🌐 FFW36 | [ffw36.com](http://www.ffw36.com) |
-
-**Remerciements / Thanks:**
-- **Falcon BMS Team** — pour ce simulateur exceptionnel / for this outstanding simulator
-- **FFW01** — Escadrille virtuelle online sur F-16 Falcon
-- **FFW36** — Escadrille virtuelle F-16
-
-> *Falcon-Eye est un outil communautaire indépendant. Il n'existe aucun lien officiel entre Falcon-Eye et les créateurs de Falcon 4 ou de Falcon BMS.*  
-> *Falcon-Eye is an independent community tool. There is no official connection between Falcon-Eye and the creators of Falcon 4 or Falcon BMS.*
-
----
-
 ## Architecture
 
 ```
@@ -164,15 +137,46 @@ falcon-eye/
 └── requirements.txt
 ```
 
-**Build exe:**
-```bash
-pip install -r requirements.txt pyinstaller
-pyinstaller --onefile --windowed --icon=assets/falcon_eye.ico --add-data "assets;assets" --add-data "core;core" --name "FalconEye" main.py
-```
-
 ## Licence / License
 
 GNU General Public License v3.0 — [LICENSE](LICENSE)
+
+---
+
+## Crédits / Credits
+
+**Développé par / Developed by [Riesu](https://falcon-charts.com)**
+
+### 🛠️ Projets Falcon-Charts / Falcon-Charts Projects
+
+| | |
+|---|---|
+| 🌐 Falcon-Eye | [eye.falcon-charts.com](https://eye.falcon-charts.com) |
+| 🌐 Falcon Charts | [falcon-charts.com](https://falcon-charts.com) |
+| 🌐 Falcon-Pad | [pad.falcon-charts.com](https://pad.falcon-charts.com) |
+
+### 🎮 Simulateur / Simulator
+
+| | |
+|---|---|
+| 🌐 Falcon BMS | [falcon-bms.com](https://www.falcon-bms.com) |
+
+**Falcon BMS Team** — pour ce simulateur exceptionnel / for this outstanding simulator
+
+### 🪖 Escadrilles virtuelles / Virtual Squadrons
+
+| | |
+|---|---|
+| 🌐 FFW01 | [ffw-01.fr](https://www.ffw-01.fr) |
+| 🌐 FFW36 | [ffw36.com](http://www.ffw36.com) |
+
+- **FFW01** — Escadrille virtuelle online sur F-16 Falcon
+- **FFW36** — Escadrille virtuelle F-16
+
+---
+
+> *Falcon-Eye est un outil communautaire indépendant. Il n'existe aucun lien officiel entre Falcon-Eye et les créateurs de Falcon 4 ou de Falcon BMS.*  
+> *Falcon-Eye is an independent community tool. There is no official connection between Falcon-Eye and the creators of Falcon 4 or Falcon BMS.*
 
 ---
 

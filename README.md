@@ -6,10 +6,10 @@
 <p align="center"><em>AWACS / ATC System for Falcon BMS</em></p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Falcon_BMS-4.37_|_4.38-orange">
-  <img src="https://img.shields.io/badge/platform-Windows-lightgrey">
-  <img src="https://img.shields.io/badge/license-GPL_v3-green">
-  <img src="https://img.shields.io/badge/gratuit-open_source-brightgreen">
+  <img src="https://img.shields.io/badge/Falcon_BMS-4.38-orange">
+  <img src="https://img.shields.io/badge/Platform-Windows-lightgrey">
+  <img src="https://img.shields.io/badge/License-GPL_v3-green">
+  <img src="https://img.shields.io/badge/Gratuit-open_source-brightgreen">
 </p>
 
 ---
@@ -18,9 +18,8 @@
 
 ### C'est quoi ?
 
-Falcon-Eye est un scope radar **gratuit et open source** dédié aux **contrôleurs AWACS/GCI et ATC** sur Falcon BMS. Il se connecte en temps réel à votre session BMS et affiche tous les contacts aériens sur une carte tactique — avec BRAA, bullseye, anneaux SAM et radio IVC intégrés.
+Falcon-Eye est un scope radar **gratuit et open source** dédié aux **contrôleurs AWACS/GCI et ATC** sur Falcon BMS. Il se connecte en temps réel à votre session BMS et affiche tous les contacts aériens sur une carte tactique — avec BRAA, bullseye, SAM et IVC intégrés.
 
-Conçu pour tourner sur un **second écran** pendant une session multi. Le GCI garde les yeux sur la carte, les pilotes gardent les yeux dans le cockpit.
 
 📧 contact@falcon-charts.com — 🌐 [eye.falcon-charts.com](https://eye.falcon-charts.com)
 
@@ -29,8 +28,6 @@ Conçu pour tourner sur un **second écran** pendant une session multi. Le GCI g
 ### Téléchargement
 
 👉 **[Télécharger FalconEye.exe](../../releases/latest)**
-
-Pas d'installation, pas de Python, pas de dépendances. Double-clic et c'est parti.
 
 > ⚠️ **Windows SmartScreen** peut bloquer le premier lancement car l'exe n'est pas signé.  
 > Cliquer **"Informations complémentaires" → "Exécuter quand même"**.
@@ -42,12 +39,10 @@ Pas d'installation, pas de Python, pas de dépendances. Double-clic et c'est par
 1. Lancer **Falcon BMS** et démarrer une mission
 2. Lancer **FalconEye.exe**
 3. Laisser `127.0.0.1` si BMS tourne sur la même machine, sinon entrer l'IP du serveur
-4. Cliquer **Connecter**
-5. Les contacts apparaissent immédiatement
+4. Cliquer sur **Connecter**
 
-**Optionnel — Carte mission :** Bouton **MISSION** → charger votre fichier `.ini` BMS pour les anneaux SAM, la route, le bullseye et les lignes de front.
+**Optionnel — Carte mission :** Bouton **MISSION** → charger votre fichier `.ini` BMS pour les SAM, la route, le bullseye et les lignes de front.
 
-**Optionnel — Radio IVC :** Lancer **IVC Client.exe** depuis le launcher BMS. Falcon-Eye lit automatiquement les fréquences UHF/VHF depuis la mémoire partagée BMS.
 
 ---
 
@@ -91,7 +86,7 @@ Avec un site GCI à **50 ft** effectif (antenne + terrain), cela donne :
 
 #### 🔴 Système BRAA
 
-Le BRAA (Bearing, Range, Altitude, Aspect) est le langage universel du GCI. Falcon-Eye le rend **aussi simple que possible** :
+Le BRAA (Bearing, Range, Altitude, Aspect) Falcon-Eye le rend **aussi simple que possible** :
 
 1. **Clic** sur un contact → flight strip s'ouvre
 2. Cliquer **📐 BRAA** dans la strip → contact mis en surbrillance orange
@@ -128,7 +123,7 @@ Un clic sur un contact ouvre une fiche flottante avec :
 - Callsign et type d'appareil
 - Vitesse (kt), cap (°), altitude (FL)
 - ID code (Friendly/Hostile/Bogey...)
-- Bouton BRAA direct
+- Bouton BRAA
 
 #### 🗂️ Panneau Alliés
 
@@ -157,8 +152,6 @@ Vue dédiée de tous les contacts amis avec leurs données, indépendante de la 
 
 Falcon-Eye is a **free and open source** radar scope for **AWACS/GCI and ATC controllers** in Falcon BMS. It connects in real-time to your BMS session and displays all air contacts on a tactical map — with BRAA, bullseye, SAM rings, and integrated IVC radio.
 
-Built to run on a **second monitor** during multiplayer sessions. The GCI keeps eyes on the radar, pilots keep eyes in the cockpit.
-
 📧 contact@falcon-charts.com — 🌐 [eye.falcon-charts.com](https://eye.falcon-charts.com)
 
 ---
@@ -167,7 +160,6 @@ Built to run on a **second monitor** during multiplayer sessions. The GCI keeps 
 
 👉 **[Download FalconEye.exe](../../releases/latest)**
 
-No installation, no Python, no dependencies. Double-click and go.
 
 > ⚠️ **Windows SmartScreen** may block the first launch since the exe is unsigned.  
 > Click **"More info" → "Run anyway"**.

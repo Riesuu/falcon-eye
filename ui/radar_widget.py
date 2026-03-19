@@ -431,6 +431,10 @@ html,body,#map{{width:100%;height:100%;background:#080c08;overflow:hidden}}
 .fstrip-close{{width:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.4;font-size:18px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.07);transition:opacity .15s}}
 .fstrip-close:hover{{opacity:1}}
 .fstrip-resize{{width:10px;background:transparent;cursor:ew-resize;flex-shrink:0;display:flex;align-items:center;justify-content:center;opacity:.25;font-size:10px;color:#44aa66}}
+.fs-actions{{padding:5px 10px 8px;border-top:1px solid rgba(0,180,80,.1)}}
+.fs-btn-braa{{width:100%;background:rgba(0,20,10,.8);border:1px solid rgba(255,136,0,.4);color:#ff8800;font-family:Consolas,monospace;font-size:11px;padding:5px 0;border-radius:3px;cursor:pointer;letter-spacing:1px;transition:all .15s}}
+.fs-btn-braa:hover{{background:rgba(255,136,0,.15);border-color:#ff8800;color:#ffaa00}}
+.fs-btn-braa.active{{background:rgba(255,136,0,.2);border-color:#ff8800;color:#ff8800;box-shadow:0 0 8px rgba(255,136,0,.3)}}
 .fstrip-resize:hover{{opacity:.8}}
 
 /* ── HUD ── */
@@ -640,7 +644,7 @@ html,body,#map{{width:100%;height:100%;background:#080c08;overflow:hidden}}
     <span class="braa-title">📐 BRAA</span>
     <span class="braa-close" onclick="toggleBraaWin()">✕</span>
   </div>
-  <div class="braa-hint" id="braa-hint">Ctrl+clic sur un contact pour commencer un BRAA</div>
+  <div class="braa-hint" id="braa-hint">Clic sur un contact pour démarrer un BRAA</div>
   <div class="braa-list" id="braa-list">
     <div class="braa-empty">Aucun BRAA actif</div>
   </div>
@@ -667,6 +671,9 @@ html,body,#map{{width:100%;height:100%;background:#080c08;overflow:hidden}}
     <div><div class="fs-lbl">HEADING</div><div class="fs-val hdg" id="fs-hdg">—</div></div>
     <div><div class="fs-lbl">ALTITUDE (FL)</div><div class="fs-val alt" id="fs-alt">—</div></div>
     <div><div class="fs-lbl">ID CODE</div><div class="fs-val" id="fs-id">—</div></div>
+  </div>
+  <div class="fs-actions">
+    <button class="fs-btn-braa" id="fs-braa-btn" onclick="fsBraaClick()">📐 BRAA</button>
   </div>
 </div>
 
@@ -1132,13 +1139,11 @@ function updateTrack(t){{
       const m=L.marker(ll,{{icon:ic,zIndexOffset:100}}).addTo(map);
       m.on('click',e=>{{
       L.DomEvent.stopPropagation(e);
-      if(e.originalEvent.ctrlKey){{
-        // Ctrl+clic → sélectionner comme SOURCE BRAA
-        braaSetSource(t.uid);
-      }}else if(_braaPending){{
-        // Source déjà sélectionnée → compléter la paire BRAA
+      if(_braaPending){{
+        // Source déjà sélectionnée → ce clic est la CIBLE
         braaTargetClick(t.uid);
       }}else{{
+        // Premier clic = sélection normale + ouvre flight strip
         selUid=t.uid;updateAllTrackIcons();openFltStrip(t.uid);
         if(window._pyBridge)window._pyBridge.onTrackClick(t.uid);
       }}
@@ -1172,7 +1177,7 @@ function showTrackMenu(t,pt){{
     <div class="cmenu-item" style="color:#00ff88" onclick="setBraaRef('${{t.uid}}')">⊕ Set BRAA Ref</div>
     <div class="cmenu-sep"></div>
     ${{ids.map(id=>`<div class="cmenu-item" onclick="setTrkId('${{t.uid}}','${{id}}')" style="color:${{ID_COLORS[id]||'#aaa'}}">${{id}}</div>`).join('')}}
-    <div class="cmenu-sep"></div><div class="cmenu-item" style="color:#00e5ff" onclick="braaSetSource(''+t.uid+'')">📐 BRAA depuis ce contact</div><div class="cmenu-item" style="color:#555" onclick="closeCtx()">Annuler</div>`;
+    <div class="cmenu-sep"></div><div class="cmenu-item" style="color:#00e5ff" onclick="braaSetSource(''+t.uid+'')">📐 BRAA source</div><div class="cmenu-item" style="color:#555" onclick="closeCtx()">Annuler</div>`;
   document.body.appendChild(d);_ctxEl=d;
   setTimeout(()=>document.addEventListener('click',closeCtx,{{once:true}}),10);
 }}
@@ -1222,7 +1227,7 @@ map.on('click',e=>{{if(rulerOn){{updRuler(e.latlng);rulerOn=false;map.getContain
 let _tipEl=null;
 function showMapTip(pt,msg){{closeMapTip();const d=document.createElement('div');d.id='map-tip';d.style.cssText=`left:${{pt.x+14}}px;top:${{pt.y-10}}px`;d.textContent=msg;document.body.appendChild(d);_tipEl=d;}}
 function closeMapTip(){{if(_tipEl){{_tipEl.remove();_tipEl=null;}}}}
-document.addEventListener('keydown',e=>{{if(e.key==='Escape'){{clearRuler();closeCtx();closeMapTip();braaRefUid=null;_braaPending=null;updateAllTrackIcons();gv('braa-hint').textContent='Ctrl+clic sur un contact pour commencer un BRAA';}}}});
+document.addEventListener('keydown',e=>{{if(e.key==='Escape'){{clearRuler();closeCtx();closeMapTip();braaRefUid=null;_braaPending=null;updateAllTrackIcons();gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';}}}});
 
 // ── receiveTracks / setMission ────────────────────────────────────────────────
 function receiveTracks(data){{
@@ -1439,6 +1444,23 @@ function openFltStrip(uid){{
     gv('fs-alt').textContent=u.alt_ft?'FL'+String(Math.round(Math.abs(u.alt_ft)/100)).padStart(3,'0'):'—';
   }},500);
 }}
+function fsBraaClick(){{
+  if(!_fsUid)return;
+  var btn=gv('fs-braa-btn');
+  if(_braaPending===_fsUid){{
+    // Already source → cancel
+    _braaPending=null;
+    btn.classList.remove('active');
+    btn.textContent='📐 BRAA';
+    gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';
+    updateAllTrackIcons();
+  }}else{{
+    // Set as BRAA source
+    braaSetSource(_fsUid);
+    btn.classList.add('active');
+    btn.textContent='📐 SOURCE ✓';
+  }}
+}}
 function closeFltStrip(){{gv('flt-strip').classList.remove('open');_fsUid=null;if(_fsTimer){{clearInterval(_fsTimer);_fsTimer=null;}}}}
 // Flight strip drag handled by makeDragResize
 
@@ -1475,7 +1497,7 @@ function braaSetSource(uid){{
   _braaPending=uid;
   var t=trackData[uid];
   var lbl=t?t.display_label:uid;
-  gv('braa-hint').innerHTML='<span style="color:#ff8800">⊕ '+lbl+'</span> — Ctrl+clic ou clic gauche sur la CIBLE';
+  gv('braa-hint').innerHTML='<span style="color:#ff8800">⊕ '+lbl+'</span> — Cliquez sur la CIBLE';
   gv('braa-win').classList.add('open');
   // Mettre en surbrillance visuelle la source
   updateAllTrackIcons();
@@ -1487,15 +1509,18 @@ function braaTargetClick(uid){{
     // Même avion → annuler
     _braaPending=null;
     updateAllTrackIcons();
-    gv('braa-hint').textContent='Ctrl+clic sur un contact pour commencer un BRAA';
+    gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';
     return;
   }}
   var srcUid=_braaPending;
   _braaPending=null;
   updateAllTrackIcons();
+  // Reset BRAA button on flight strip if visible
+  var btn=gv('fs-braa-btn');
+  if(btn){{btn.classList.remove('active');btn.textContent='📐 BRAA';}}
   var id=++_braaIdCounter;
   _braaPairs.push({{id:id,srcUid:srcUid,tgtUid:uid}});
-  gv('braa-hint').textContent='Ctrl+clic sur un contact pour commencer un BRAA';
+  gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';
   gv('braa-win').classList.add('open');
   updateAllBraa();
   if(!_braaTimer)_braaTimer=setInterval(updateAllBraa,500);

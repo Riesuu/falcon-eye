@@ -117,70 +117,35 @@ No installation, no Python, no dependencies. Double-click and go.
 
 ---
 
-## Architecture
-
-```
-falcon-eye/
-├── main.py
-├── core/
-│   ├── trtt_client.py      # Tacview TRTT client + Track dataclass
-│   ├── ivc_client.py       # IVC via BMS SharedMemory
-│   ├── shared_mem.py       # BMS SharedMemory reader
-│   ├── mission_parser.py   # BMS .ini parser
-│   └── data.py             # Geographic data
-├── ui/
-│   ├── radar_widget.py     # Main radar (PyQt6 + Leaflet.js)
-│   ├── main_window.py
-│   └── ...
-├── assets/
-├── tests/                  # 163 unit tests
-└── requirements.txt
-```
-
-## Licence / License
-
-GNU General Public License v3.0 — [LICENSE](LICENSE)
-
----
-
 ## Crédits / Credits
 
-**Développé par / Developed by [Riesu](https://falcon-charts.com)**
+<p align="center">
+  <img src="assets/credits_banner.png" width="500" alt="Credits">
+</p>
 
-### 🛠️ Projets Falcon-Charts / Falcon-Charts Projects
+**Développé par / Developed by [Riesu](https://falcon-charts.com)**
 
 | | |
 |---|---|
 | 🌐 Falcon-Eye | [eye.falcon-charts.com](https://eye.falcon-charts.com) |
 | 🌐 Falcon Charts | [falcon-charts.com](https://falcon-charts.com) |
 | 🌐 Falcon-Pad | [pad.falcon-charts.com](https://pad.falcon-charts.com) |
-
-### 🎮 Simulateur / Simulator
-
-| | |
-|---|---|
 | 🌐 Falcon BMS | [falcon-bms.com](https://www.falcon-bms.com) |
-
-**Falcon BMS Team** — pour ce simulateur exceptionnel / for this outstanding simulator
-
-### 🪖 Escadrilles virtuelles / Virtual Squadrons
-
-| | |
-|---|---|
 | 🌐 FFW01 | [ffw-01.fr](https://www.ffw-01.fr) |
 | 🌐 FFW36 | [ffw36.com](http://www.ffw36.com) |
 
+**Remerciements / Thanks:**
+- **Falcon BMS Team** — pour ce simulateur exceptionnel / for this outstanding simulator
 - **FFW01** — Escadrille virtuelle online sur F-16 Falcon
 - **FFW36** — Escadrille virtuelle F-16
 
----
-
-> *Falcon-Eye est un outil communautaire indépendant. Il n'existe aucun lien officiel entre Falcon-Eye et les créateurs de Falcon 4 ou de Falcon BMS.*  
-> *Falcon-Eye is an independent community tool. There is no official connection between Falcon-Eye and the creators of Falcon 4 or Falcon BMS.*
+> Falcon-Eye est un outil communautaire indépendant. Il n'existe aucun lien officiel entre Falcon-Eye et les créateurs de Falcon 4 ou de Falcon BMS. 
+> Falcon-Eye is an independent community tool. There is no official connection between Falcon-Eye and the creators of Falcon 4 or Falcon BMS.
 
 ---
 
-<p align="center">
-  <img src="assets/falconcharts_logo.png" width="60" alt="Falcon Charts"><br>
-  <a href="https://falcon-charts.com">falcon-charts.com</a> — contact@falcon-charts.com
-</p>
+
+## Licence / License
+
+GNU General Public License v3.0 — [LICENSE](LICENSE)
+

@@ -20,13 +20,12 @@
 
 Falcon-Eye est un scope radar **gratuit et open source** dédié aux **contrôleurs AWACS/GCI et ATC** sur Falcon BMS. Il se connecte en temps réel à votre session BMS et affiche tous les contacts aériens sur une carte tactique — avec BRAA, bullseye, anneaux SAM et radio IVC intégrés.
 
-🌐 [eye.falcon-charts.com](https://eye.falcon-charts.com) — 📧 contact@falcon-charts.com
+📧 contact@falcon-charts.com
 
 ### Téléchargement
 
 👉 **[Télécharger FalconEye.exe](../../releases/latest)**
 
-Pas d'installation, pas de Python, pas de dépendances. Double-clic et c'est parti.
 
 > ⚠️ **Windows SmartScreen** peut bloquer le premier lancement car l'exe n'est pas signé.  
 > Cliquer **"Informations complémentaires" → "Exécuter quand même"**.
@@ -80,7 +79,6 @@ Falcon-Eye is a **free and open source** radar scope for **AWACS/GCI and ATC con
 
 👉 **[Download FalconEye.exe](../../releases/latest)**
 
-No installation, no Python, no dependencies. Double-click and go.
 
 > ⚠️ **Windows SmartScreen** may block the first launch since the exe is unsigned.  
 > Click **"More info" → "Run anyway"**.

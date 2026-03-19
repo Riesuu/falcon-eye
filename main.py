@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Falcon-Eye GCI — Falcon BMS Ground Control Intercept
+"""Falcon-Eye — Falcon BMS Ground Control Intercept
 By Riesu — contact@falcon-charts.com
 License: GNU GPL v3
 """
@@ -8,7 +8,7 @@ from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
 LOG_DIR = os.path.join(os.path.expanduser("~"),
-    "AppData","Local","FalconEyeGCI","logs") if sys.platform=="win32" \
+    "AppData","Local","FalconEye","logs") if sys.platform=="win32" \
     else os.path.join(os.path.expanduser("~"),".falcon_eye_gci","logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -37,7 +37,7 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
-    app.setApplicationName("Falcon-Eye GCI")
+    app.setApplicationName("Falcon-Eye")
     app.setStyle("Fusion")
     icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "falcon_eye.ico")
     if os.path.exists(icon_path):

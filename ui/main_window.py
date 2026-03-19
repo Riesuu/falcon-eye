@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Falcon-Eye GCI — By Riesu (contact@falcon-charts.com) — GPL v3
+Falcon-Eye — By Riesu (contact@falcon-charts.com) — GPL v3
 - Bouton CONNECTER remplacé par DÉCO quand connecté (un seul bouton)
 - Toggles séparés : Aéroports / ICAO / Nom
 - Pas de module dessin
@@ -101,7 +101,7 @@ class _Bridge(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Falcon-Eye GCI")
+        self.setWindowTitle("Falcon-Eye")
         self.setMinimumSize(1000, 720)
         self.resize(1440, 900)
         self.setStyleSheet(STYLE)
@@ -373,7 +373,7 @@ class MainWindow(QMainWindow):
             self._ivc_poll_timer.start(2000)
 
     def _init_sm(self):
-        pass  # SM removed for GCI
+        pass
 
     def _disconnect(self):
         self._connected = False
@@ -509,7 +509,7 @@ class MainWindow(QMainWindow):
 
     # ── Polling ───────────────────────────────────────────────────────────────
     def _poll_sm(self):
-        pass  # SM removed for GCI
+        pass
 
     # ── Async loop ────────────────────────────────────────────────────────────
     def _start_async_loop(self):

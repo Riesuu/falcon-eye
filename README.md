@@ -130,14 +130,18 @@ No installation, no Python, no dependencies. Double-click and go.
 | 🌐 Falcon-Eye | [eye.falcon-charts.com](https://eye.falcon-charts.com) |
 | 🌐 Falcon Charts | [falcon-charts.com](https://falcon-charts.com) |
 | 🌐 Falcon-Pad | [pad.falcon-charts.com](https://pad.falcon-charts.com) |
+
 | 🌐 Falcon BMS | [falcon-bms.com](https://www.falcon-bms.com) |
+
 | 🌐 FFW01 | [ffw-01.fr](https://www.ffw-01.fr) |
 | 🌐 FFW36 | [ffw36.com](http://www.ffw36.com) |
 
 **Remerciements / Thanks:**
-- **Falcon BMS Team** — pour ce simulateur exceptionnel / for this outstanding simulator
-- **FFW01** — Escadrille virtuelle online sur F-16 Falcon
-- **FFW36** — Escadrille virtuelle F-16
+- **BMS Team** — pour ce superbe simulateur / for this outstanding simulator (https://www.falcon-bms.com)
+- **FFW01** — Escadrille virtuelle (https://www.ffw-01.fr)
+- **FFW36** — Escadrille virtuelle (http://www.ffw36.com)
+
+**Buy Falcon 4** - (https://store.steampowered.com/app/429530/Falcon_40)
 
 > Falcon-Eye est un outil communautaire indépendant. Il n'existe aucun lien officiel entre Falcon-Eye et les créateurs de Falcon 4 ou de Falcon BMS. 
 > Falcon-Eye is an independent community tool. There is no official connection between Falcon-Eye and the creators of Falcon 4 or Falcon BMS.

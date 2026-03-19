@@ -37,9 +37,10 @@ Falcon-Eye est un scope radar **gratuit et open source** dédié aux **contrôle
 ### Démarrage rapide
 
 1. Lancer **Falcon BMS** et démarrer une mission
-2. Lancer **FalconEye.exe**
-3. Laisser `127.0.0.1` si BMS tourne sur la même machine, sinon entrer l'IP du serveur
-4. Cliquer sur **Connecter**
+2. Necessite ACMI ON
+3. Lancer **FalconEye.exe**
+4. Laisser `127.0.0.1` si BMS tourne sur la même machine, sinon entrer l'IP du serveur
+5. Cliquer sur **Connecter**
 
 **Optionnel — Carte mission :** Bouton **MISSION** → charger votre fichier `.ini` BMS pour les SAM, la route, le bullseye et les lignes de front.
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/falconeye_logo.png" width="220" alt="Falcon-Eye">
+  <img src="assets/falconeye_logo.png" width="250" alt="Falcon-Eye">
 </p>
 
 <h1 align="center">Falcon-Eye</h1>

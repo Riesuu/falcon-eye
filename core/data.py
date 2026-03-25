@@ -430,34 +430,8 @@ def bullseye_str(bull_lat, bull_lon, tgt_lat, tgt_lon, tgt_alt_ft=0) -> str:
     fl  = tgt_alt_ft // 1000
     return f"{int(brg):03d} / {int(rng)} / {fl:02d}0"
 
-# ── Conversion TMERC Korea → WGS84 ───────────────────────────────────────────
-try:
-    from pyproj import CRS, Transformer
-    _bms_crs = CRS.from_proj4(
-        "+proj=tmerc +lon_0=127.5 +ellps=WGS84 +k=0.9996 "
-        "+units=m +x_0=512000 +y_0=-3749290"
-    )
-    _tf = Transformer.from_crs(_bms_crs, CRS.from_epsg(4326), always_xy=True)
-    def bms_to_latlon(north_ft, east_ft):
-        lon, lat = _tf.transform(east_ft * 0.3048, north_ft * 0.3048)
-        return lat, lon
-    PYPROJ_OK = True
-except ImportError:
-    def bms_to_latlon(north_ft, east_ft):
-        a=6378137.0; e2=0.00669437999014
-        lon0=math.radians(127.5); k0=0.9996; FE=512000.0; FN=-3749290.0
-        E_m=east_ft*0.3048; N_m=north_ft*0.3048
-        e1=(1-math.sqrt(1-e2))/(1+math.sqrt(1-e2))
-        M1=(N_m-FN)/k0
-        mu1=M1/(a*(1-e2/4-3*e2**2/64-5*e2**3/256))
-        phi1=(mu1+(3*e1/2-27*e1**3/32)*math.sin(2*mu1)
-              +(21*e1**2/16-55*e1**4/32)*math.sin(4*mu1)
-              +(151*e1**3/96)*math.sin(6*mu1))
-        N1r=a/math.sqrt(1-e2*math.sin(phi1)**2)
-        T1=math.tan(phi1)**2; C1=e2*math.cos(phi1)**2/(1-e2)
-        R1=a*(1-e2)/(1-e2*math.sin(phi1)**2)**1.5
-        D=(E_m-FE)/(N1r*k0)
-        lat=phi1-(N1r*math.tan(phi1)/R1)*(D**2/2-(5+3*T1+10*C1-4*C1**2-9*e2)*D**4/24)
-        lon=lon0+(D-(1+2*T1+C1)*D**3/6)/math.cos(phi1)
-        return math.degrees(lat), math.degrees(lon)
-    PYPROJ_OK = False
+# ── Conversion BMS → WGS84 (multi-théâtre) ───────────────────────────────────
+# Délégué à core.theaters — supporte Korea, Balkans, Israel, Aegean, Iberia, Nordic
+# Le théâtre actif est mis à jour automatiquement via core.stringdata.detect_theater()
+from core.theaters import bms_to_latlon, in_theater_bbox  # noqa: F401
+PYPROJ_OK = True  # toujours disponible (pure Python, pas de dépendance externe)

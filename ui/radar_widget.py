@@ -181,6 +181,23 @@ class RadarWidget(QWidget):
         zoom = max(5, min(14, round(math.log2(20000 / max(nm, 1)))))
         self._js(f"map.setZoom({zoom});")
 
+    def set_theater(self, name: str, lat: float, lon: float, zoom: int):
+        """Recentre la carte sur le nouveau théâtre et vide les pistes existantes."""
+        import logging
+        logging.getLogger(__name__).info(f"set_theater: {name} ({lat:.2f},{lon:.2f}) z={zoom}")
+        # Vider les trails/positions pour éviter les artefacts inter-théâtres
+        self._trails.clear()
+        self._last_pos.clear()
+        self._last_counts = None
+        # Recentrer la carte JS
+        self._js(f"map.setView([{lat},{lon}],{zoom});")
+        # Vider les pistes sur la carte
+        self._js("receiveTracks({tracks:[],n_blue:0,n_red:0,n_aam:0,n_hum:0});")
+        # Vider la mission si elle appartient à l'ancien théâtre
+        self._js("if(typeof setMission==='function')setMission({});")
+        self.mission = {}
+        self._bullseye = []
+
     def set_layer(self, name: str, visible: bool):
         self.layers[name] = visible
         self._js(f"toggleLayer('{name}',{str(visible).lower()});")
@@ -196,8 +213,11 @@ class RadarWidget(QWidget):
             js_val = "true" if visible else "false"
         self._js(f"toggleLayer('{name}',{js_val});")
 
-    def center_on(self, lat: float, lon: float):
-        self._js(f"map.setView([{lat},{lon}], map.getZoom());")
+    def center_on(self, lat: float, lon: float, zoom: int = None):
+        if zoom is not None:
+            self._js(f"map.setView([{lat},{lon}],{zoom});")
+        else:
+            self._js(f"map.setView([{lat},{lon}], map.getZoom());")
 
     @property
     def bullseye(self): return self._bullseye
@@ -388,13 +408,18 @@ class RadarWidget(QWidget):
                            for corners in polys])
 
     def _build_html(self) -> str:
+        from core.theaters import theater_center_zoom
         airports_js = self._airports_json()
         runways_js  = self._runways_json()
         dmz_js      = json.dumps(DMZ_LINE)
+        c_lat, c_lon, zoom = theater_center_zoom()
         return _HTML_TEMPLATE.format(
             airports_js=airports_js,
             runways_js=runways_js,
             dmz_js=dmz_js,
+            map_center_lat=c_lat,
+            map_center_lon=c_lon,
+            map_zoom=zoom,
         )
 
     def keyPressEvent(self, e): super().keyPressEvent(e)
@@ -977,7 +1002,7 @@ function closeOptions(){{gv('opt-panel').classList.remove('open');}}
 // Options panel drag handled by makeDragResize (global _wm handler)
 
 // ── Carte ────────────────────────────────────────────────────────────────────
-const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false}}).setView([37.5,127.5],7);
+const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false}}).setView([{map_center_lat},{map_center_lon}],{map_zoom});
 const darkTile=L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',{{maxZoom:19,subdomains:'abcd',keepBuffer:4}}).addTo(map);
 darkTile.once('tileerror',()=>{{map.removeLayer(darkTile);L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{maxZoom:19}}).addTo(map);}});
 

@@ -121,6 +121,9 @@ class RadarWidget(QWidget):
         self._bridge  = _Bridge(self)
         self._channel.registerObject("py", self._bridge)
         self._view.page().setWebChannel(self._channel)
+        # Fond WebEngine = couleur de la carte → pas de flash blanc/noir au repaint
+        from PyQt6.QtGui import QColor
+        self._view.page().setBackgroundColor(QColor("#080c08"))
         self._bridge.page_ready.connect(self._on_page_ready)
         self._bridge.track_clicked.connect(self._on_track_click)
         self._bridge.apt_clicked.connect(self._on_apt_click)
@@ -970,8 +973,8 @@ function closeOptions(){{gv('opt-panel').classList.remove('open');}}
 // Options panel drag handled by makeDragResize (global _wm handler)
 
 // ── Carte ────────────────────────────────────────────────────────────────────
-const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false}}).setView([37.5,127.5],7);
-const darkTile=L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',{{maxZoom:19,subdomains:'abcd',keepBuffer:4}}).addTo(map);
+const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false,fadeAnimation:false,markerZoomAnimation:false}}).setView([37.5,127.5],7);
+const darkTile=L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',{{maxZoom:19,subdomains:'abcd',keepBuffer:8,updateWhenIdle:false}}).addTo(map);
 darkTile.once('tileerror',()=>{{map.removeLayer(darkTile);L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{maxZoom:19}}).addTo(map);}});
 
 const dmzLayer=L.polyline(DMZ,{{color:'#cc4400',weight:2,opacity:.7,dashArray:'10 6'}}).addTo(map);

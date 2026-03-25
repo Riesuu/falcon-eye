@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-AlliesPanel — Fenêtre flottante liste des avions alliés en vol
-Style : tableau compact, callsign / type / alt / speed / hdg
+AlliesPanel — anti-clignotement : setItem seulement si valeur changée,
+setRowCount seulement si le nombre de lignes change.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                               QTableWidget, QTableWidgetItem, QHeaderView,
@@ -62,6 +62,10 @@ class AlliesPanel(QWidget):
         self.setFixedWidth(340)
         self._build_ui()
 
+        # Cache anti-clignotement
+        self._last_count = -1
+        self._row_cache  = {}   # {row: (val0, val1, ..., val5, color_name)}
+
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh)
         self._timer.start(1000)
@@ -71,7 +75,6 @@ class AlliesPanel(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # Header
         hdr = QFrame(); hdr.setObjectName("allies")
         hdr.setStyleSheet("QFrame{background:#071510;border-bottom:1px solid #0d3d0d;}")
         hdr_lay = QHBoxLayout(hdr)
@@ -84,13 +87,11 @@ class AlliesPanel(QWidget):
         self.lbl_count = QLabel("0 piste(s)")
         self.lbl_count.setStyleSheet("color:#2a6a3a;font-family:Consolas;font-size:9pt;padding:0 8px;")
         hdr_lay.addWidget(self.lbl_count)
-
         lay.addWidget(hdr)
 
         sub = QLabel("Callsign · Type · Alt (FL) · Speed (kt) · HDG")
         sub.setObjectName("sub"); lay.addWidget(sub)
 
-        # Tableau
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["CALLSIGN", "TYPE", "FL", "KT", "HDG", "ID"])
@@ -104,12 +105,9 @@ class AlliesPanel(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet(STYLE + """
-            QTableWidget::item:alternate { background: #060f06; }
-        """)
+        self.table.setStyleSheet(STYLE + "QTableWidget::item:alternate { background: #060f06; }")
         lay.addWidget(self.table)
 
-        # Légende bas
         leg = QFrame()
         leg.setStyleSheet("QFrame{background:#030a03;border-top:1px solid #0d2a0d;}")
         leg_lay = QHBoxLayout(leg)
@@ -130,39 +128,46 @@ class AlliesPanel(QWidget):
 
         allies = [
             t for t in tracks.values()
-            if t.is_air and t.lat != 0
+            if t.alive and t.is_air and t.lat != 0
             and t.coalition in ("Blue", "Allies")
         ]
         allies.sort(key=lambda t: (not t.is_human, t.display_label))
 
-        self.lbl_count.setText(f"{len(allies)} piste(s)")
-        self.table.setRowCount(len(allies))
+        n = len(allies)
 
+        # ── nombre de lignes : setRowCount seulement si changé ────────────
+        if n != self._last_count:
+            self._last_count = n
+            self.table.setRowCount(n)
+            self.lbl_count.setText(f"{n} piste(s)")
+            # invalider tout le cache quand le nb de lignes change
+            self._row_cache.clear()
+
+        # ── cellules : setItem seulement si valeur ou couleur changée ─────
         for row, t in enumerate(allies):
-            fl  = f"{t.alt_ft // 100:03d}"
-            spd = f"{t.speed_kts}"
-            hdg = f"{int(t.hdg):03d}°"
+            fl    = f"{t.alt_ft // 100:03d}"
+            spd   = f"{t.speed_kts}"
+            hdg   = f"{int(t.hdg):03d}°"
+            color = QColor(t.color)
+            key   = (t.display_label, t.name[:14] or "—", fl, spd, hdg,
+                     t.id_code[:12], color.name(), t.is_human)
 
-            items = [
-                t.display_label,
-                t.name[:14] or "—",
-                fl, spd, hdg,
-                t.id_code[:12],
-            ]
-            col = QColor(t.color)
+            if self._row_cache.get(row) == key:
+                continue                       # rien à changer sur cette ligne
+            self._row_cache[row] = key
+
+            items = [t.display_label, t.name[:14] or "—", fl, spd, hdg, t.id_code[:12]]
             for col_idx, val in enumerate(items):
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter |
                                       (Qt.AlignmentFlag.AlignLeft if col_idx <= 1
                                        else Qt.AlignmentFlag.AlignHCenter))
-                # Callsign en couleur piste, reste atténué
                 if col_idx == 0:
-                    item.setForeground(col.lighter(130) if t.is_human else col)
+                    item.setForeground(color.lighter(130) if t.is_human else color)
                     if t.is_human:
-                        f = QFont("Consolas", 9, QFont.Weight.Bold)
-                        item.setFont(f)
+                        item.setFont(QFont("Consolas", 9, QFont.Weight.Bold))
                 else:
-                    item.setForeground(col.darker(110))
+                    item.setForeground(color.darker(110))
                 self.table.setItem(row, col_idx, item)
 
             self.table.setRowHeight(row, 20)

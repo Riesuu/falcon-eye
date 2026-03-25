@@ -1500,7 +1500,9 @@ function computeBraa(latA,lonA,latB,lonB){{
 
 function getAspect(bearFromFriend,hdgTgt){{
   if(hdgTgt==null)return'—';
-  var diff=((hdgTgt-bearFromFriend)+540)%360-180;
+  // bearToUs = bearing depuis la CIBLE vers le friendly (inverse de bearFromFriend)
+  var bearToUs=(bearFromFriend+180)%360;
+  var diff=((hdgTgt-bearToUs)+540)%360-180;
   if(Math.abs(diff)<=30)return'HOT';
   if(Math.abs(diff)>=150)return'COLD';
   if(diff>0)return'FLANK R';

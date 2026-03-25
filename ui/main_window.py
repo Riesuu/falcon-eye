@@ -8,7 +8,7 @@ Falcon-Eye — By Riesu (contact@falcon-charts.com) — GPL v3
 - Options couleurs
 - Status bar complète
 """
-import asyncio, threading, logging, json, os
+import asyncio, threading, logging, json, os, time
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QToolBar, QStatusBar, QLabel, QPushButton, QCheckBox, QComboBox,
@@ -443,7 +443,6 @@ class MainWindow(QMainWindow):
         self._tracks = tracks
         self.radar.update_tracks(tracks)
         # Throttle stats à 1/s max — stats() itère tous les contacts
-        import time
         now = time.monotonic()
         if self._trtt and now - getattr(self, '_last_stats_t', 0) >= 1.0:
             self._last_stats_t = now

@@ -347,7 +347,7 @@ class RadarWidget(QWidget):
                 "display_label": t.display_label, "name": t.name, "group": t.group,
                 "coalition": t.coalition, "id_code": t.id_code,
                 "is_human": t.is_human, "is_missile": t.is_missile,
-                "color": t.color, "alive": t.alive, "moved": moved,
+                "color": t.color, "moved": moved,
                 "trail": trail[-8:] if moved else [],
             })
 
@@ -1137,7 +1137,7 @@ function updateVector(t){{
   trackVectors[t.uid]=L.polyline([[t.lat,t.lon],[t.lat+dLat,t.lon+dLon]],{{color:trkCol(t),weight:1.5,opacity:.55,interactive:false,dashArray:'6 3'}}).addTo(map);
 }}
 function updateTrack(t){{
-  if(!t.lat||!t.alive){{removeTrack(t.uid);return;}}
+  if(!t.lat){{removeTrack(t.uid);return;}}
   const ll=[t.lat,t.lon],sz=60;
   if(t.moved||!trackTrails[t.uid])updateTrail(t);
   if(t.moved||!trackVectors[t.uid])updateVector(t);
@@ -1454,7 +1454,7 @@ function openFltStrip(uid){{
   if(_fsTimer)clearInterval(_fsTimer);
   _fsTimer=setInterval(function(){{
     var u=trackData[_fsUid];
-    if(!u||!u.alive){{closeFltStrip();return;}}
+    if(!u){{closeFltStrip();return;}}
     gv('fs-spd').textContent=u.speed_kts>0?Math.round(u.speed_kts):'—';
     gv('fs-hdg').textContent=u.hdg!=null?String(Math.round(u.hdg)).padStart(3,'0')+'°':'—';
     gv('fs-alt').textContent=u.alt_ft?'FL'+String(Math.round(Math.abs(u.alt_ft)/100)).padStart(3,'0'):'—';
@@ -1465,11 +1465,12 @@ function fsBraaClick(){{
   var btn=gv('fs-braa-btn');
   if(_braaPending===_fsUid){{
     // Already source → cancel
+    var prev=_braaPending;
     _braaPending=null;
     btn.classList.remove('active');
     btn.textContent='📐 BRAA';
     gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';
-    updateAllTrackIcons();
+    _refreshIcon(prev);
   }}else{{
     // Set as BRAA source
     braaSetSource(_fsUid);
@@ -1482,7 +1483,7 @@ function closeFltStrip(){{gv('flt-strip').classList.remove('open');_fsUid=null;i
 
 
 // ── BRAA Window ──────────────────────────────────────────────────────────────
-var _braaPairs=[],_braaLines=[],_braaPending=null,_braaTimer=null;
+var _braaPairs=[],_braaLines={{}},_braaPending=null,_braaTimer=null;
 var _braaIdCounter=0;
 
 function toggleBraaWin(){{

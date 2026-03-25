@@ -153,10 +153,9 @@ class RadarWidget(QWidget):
     def update_ivc(self, channels: list, active_freq: str = "", active_ch_name: str = ""):
         new_data = {"channels": channels, "active_freq": active_freq,
                     "active_ch_name": active_ch_name}
-        # Sérialiser les deux pour comparaison stricte avant de toucher au cache
+        # Sérialiser uniquement le nouveau et comparer au cache string
         new_json = json.dumps(new_data, ensure_ascii=False, sort_keys=True)
-        old_json = json.dumps(self._ivc_data, ensure_ascii=False, sort_keys=True)
-        if new_json != old_json:
+        if new_json != self._last_ivc_json:
             self._ivc_data = new_data
             self._last_ivc_json = ""  # invalide le cache → prochain _push_radio enverra
 
@@ -182,6 +181,23 @@ class RadarWidget(QWidget):
         zoom = max(5, min(14, round(math.log2(20000 / max(nm, 1)))))
         self._js(f"map.setZoom({zoom});")
 
+    def set_theater(self, name: str, lat: float, lon: float, zoom: int):
+        """Recentre la carte sur le nouveau théâtre et vide les pistes existantes."""
+        import logging
+        logging.getLogger(__name__).info(f"set_theater: {name} ({lat:.2f},{lon:.2f}) z={zoom}")
+        # Vider les trails/positions pour éviter les artefacts inter-théâtres
+        self._trails.clear()
+        self._last_pos.clear()
+        self._last_counts = None
+        # Recentrer la carte JS
+        self._js(f"map.setView([{lat},{lon}],{zoom});")
+        # Vider les pistes sur la carte
+        self._js("receiveTracks({tracks:[],n_blue:0,n_red:0,n_aam:0,n_hum:0});")
+        # Vider la mission si elle appartient à l'ancien théâtre
+        self._js("if(typeof setMission==='function')setMission({});")
+        self.mission = {}
+        self._bullseye = []
+
     def set_layer(self, name: str, visible: bool):
         self.layers[name] = visible
         self._js(f"toggleLayer('{name}',{str(visible).lower()});")
@@ -197,8 +213,11 @@ class RadarWidget(QWidget):
             js_val = "true" if visible else "false"
         self._js(f"toggleLayer('{name}',{js_val});")
 
-    def center_on(self, lat: float, lon: float):
-        self._js(f"map.setView([{lat},{lon}], map.getZoom());")
+    def center_on(self, lat: float, lon: float, zoom: int = None):
+        if zoom is not None:
+            self._js(f"map.setView([{lat},{lon}],{zoom});")
+        else:
+            self._js(f"map.setView([{lat},{lon}], map.getZoom());")
 
     @property
     def bullseye(self): return self._bullseye
@@ -283,7 +302,7 @@ class RadarWidget(QWidget):
 
     def _push_tracks(self):
         if not self._page_ready: return
-        alive  = [t for t in self.tracks.values() if t.alive]
+        alive  = list(self.tracks.values())
         # ── Filtre portée radar réaliste (TOUJOURS ACTIF) ──────────────────
         # Formule ligne de mire standard : R = 1.23 * (√alt_avion + √alt_radar)
         # Radar GCI au sol ~ 50ft effectif (mât + terrain)
@@ -314,6 +333,15 @@ class RadarWidget(QWidget):
 
         show_aam = self.layers.get("missiles", True)
 
+        # Early-exit rapide : si aucun contact vivant et compteurs identiques, skip tout
+        if not alive:
+            counts = (0, 0, 0, 0, 0)
+            if counts == getattr(self, "_last_counts", None):
+                return
+            self._last_counts = counts
+            self._js("receiveTracks({tracks:[],n_blue:0,n_red:0,n_aam:0,n_hum:0})")
+            return
+
         tracks_list = []
         for t in alive:
             if t.is_ground:
@@ -339,8 +367,8 @@ class RadarWidget(QWidget):
                 "display_label": t.display_label, "name": t.name, "group": t.group,
                 "coalition": t.coalition, "id_code": t.id_code,
                 "is_human": t.is_human, "is_missile": t.is_missile,
-                "color": t.color, "alive": t.alive, "moved": moved,
-                "trail": trail[-8:],
+                "color": t.color, "moved": moved,
+                "trail": trail[-8:] if moved else [],
             })
 
         alive_uids = {t.uid for t in alive}
@@ -380,13 +408,18 @@ class RadarWidget(QWidget):
                            for corners in polys])
 
     def _build_html(self) -> str:
+        from core.theaters import theater_center_zoom
         airports_js = self._airports_json()
         runways_js  = self._runways_json()
         dmz_js      = json.dumps(DMZ_LINE)
+        c_lat, c_lon, zoom = theater_center_zoom()
         return _HTML_TEMPLATE.format(
             airports_js=airports_js,
             runways_js=runways_js,
             dmz_js=dmz_js,
+            map_center_lat=c_lat,
+            map_center_lon=c_lon,
+            map_zoom=zoom,
         )
 
     def keyPressEvent(self, e): super().keyPressEvent(e)
@@ -969,7 +1002,7 @@ function closeOptions(){{gv('opt-panel').classList.remove('open');}}
 // Options panel drag handled by makeDragResize (global _wm handler)
 
 // ── Carte ────────────────────────────────────────────────────────────────────
-const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false}}).setView([37.5,127.5],7);
+const map=L.map('map',{{preferCanvas:true,zoomControl:false,attributionControl:false}}).setView([{map_center_lat},{map_center_lon}],{map_zoom});
 const darkTile=L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png',{{maxZoom:19,subdomains:'abcd',keepBuffer:4}}).addTo(map);
 darkTile.once('tileerror',()=>{{map.removeLayer(darkTile);L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',{{maxZoom:19}}).addTo(map);}});
 
@@ -1129,9 +1162,10 @@ function updateVector(t){{
   trackVectors[t.uid]=L.polyline([[t.lat,t.lon],[t.lat+dLat,t.lon+dLon]],{{color:trkCol(t),weight:1.5,opacity:.55,interactive:false,dashArray:'6 3'}}).addTo(map);
 }}
 function updateTrack(t){{
-  if(!t.lat||!t.alive){{removeTrack(t.uid);return;}}
+  if(!t.lat){{removeTrack(t.uid);return;}}
   const ll=[t.lat,t.lon],sz=60;
-  updateTrail(t);updateVector(t);
+  if(t.moved||!trackTrails[t.uid])updateTrail(t);
+  if(t.moved||!trackVectors[t.uid])updateVector(t);
   if(t.moved||!trackMarkers[t.uid]){{
     const ic=L.divIcon({{html:makeTrackSvg(t,t.uid===selUid),className:'leaflet-div-icon-clean',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}});
     if(trackMarkers[t.uid]){{trackMarkers[t.uid].setLatLng(ll);trackMarkers[t.uid].setIcon(ic);}}
@@ -1144,7 +1178,9 @@ function updateTrack(t){{
         braaTargetClick(t.uid);
       }}else{{
         // Premier clic = sélection normale + ouvre flight strip
-        selUid=t.uid;updateAllTrackIcons();openFltStrip(t.uid);
+        var prev=selUid;selUid=t.uid;
+        _refreshIcon(prev);_refreshIcon(t.uid);
+        openFltStrip(t.uid);
         if(window._pyBridge)window._pyBridge.onTrackClick(t.uid);
       }}
     }});
@@ -1161,6 +1197,11 @@ function removeTrack(uid){{
   [trackMarkers,trackLabels].forEach(s=>{{if(s[uid]){{try{{map.removeLayer(s[uid]);}}catch(e){{}}delete s[uid];}}}});
   [trackTrails,trackVectors].forEach(s=>{{if(s[uid]){{try{{map.removeLayer(s[uid]);}}catch(e){{}}delete s[uid];}}}});
   delete trackData[uid];
+}}
+function _refreshIcon(uid){{
+  var t=trackData[uid];if(!t||!trackMarkers[uid])return;
+  const sz=60;
+  trackMarkers[uid].setIcon(L.divIcon({{html:makeTrackSvg(t,uid===selUid),className:'leaflet-div-icon-clean',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]}}));
 }}
 function updateAllTrackIcons(){{
   const sz=60;
@@ -1223,11 +1264,11 @@ map.on('mousemove',e=>{{
     window._pyBridge.onCursorMove(e.latlng.lat,e.latlng.lng);
   }}
 }});
-map.on('click',e=>{{if(rulerOn){{updRuler(e.latlng);rulerOn=false;map.getContainer().classList.remove('ruler-active');closeMapTip();return;}}selUid=null;updateAllTrackIcons();closeCtx();}});
+map.on('click',e=>{{if(rulerOn){{updRuler(e.latlng);rulerOn=false;map.getContainer().classList.remove('ruler-active');closeMapTip();return;}}var prev=selUid;selUid=null;_refreshIcon(prev);closeCtx();}});
 let _tipEl=null;
 function showMapTip(pt,msg){{closeMapTip();const d=document.createElement('div');d.id='map-tip';d.style.cssText=`left:${{pt.x+14}}px;top:${{pt.y-10}}px`;d.textContent=msg;document.body.appendChild(d);_tipEl=d;}}
 function closeMapTip(){{if(_tipEl){{_tipEl.remove();_tipEl=null;}}}}
-document.addEventListener('keydown',e=>{{if(e.key==='Escape'){{clearRuler();closeCtx();closeMapTip();braaRefUid=null;_braaPending=null;updateAllTrackIcons();gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';}}}});
+document.addEventListener('keydown',e=>{{if(e.key==='Escape'){{clearRuler();closeCtx();closeMapTip();var prev=_braaPending;braaRefUid=null;_braaPending=null;_refreshIcon(prev);gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';}}}});
 
 // ── receiveTracks / setMission ────────────────────────────────────────────────
 function receiveTracks(data){{
@@ -1438,7 +1479,7 @@ function openFltStrip(uid){{
   if(_fsTimer)clearInterval(_fsTimer);
   _fsTimer=setInterval(function(){{
     var u=trackData[_fsUid];
-    if(!u||!u.alive){{closeFltStrip();return;}}
+    if(!u){{closeFltStrip();return;}}
     gv('fs-spd').textContent=u.speed_kts>0?Math.round(u.speed_kts):'—';
     gv('fs-hdg').textContent=u.hdg!=null?String(Math.round(u.hdg)).padStart(3,'0')+'°':'—';
     gv('fs-alt').textContent=u.alt_ft?'FL'+String(Math.round(Math.abs(u.alt_ft)/100)).padStart(3,'0'):'—';
@@ -1449,11 +1490,12 @@ function fsBraaClick(){{
   var btn=gv('fs-braa-btn');
   if(_braaPending===_fsUid){{
     // Already source → cancel
+    var prev=_braaPending;
     _braaPending=null;
     btn.classList.remove('active');
     btn.textContent='📐 BRAA';
     gv('braa-hint').textContent='Clic sur un contact pour démarrer un BRAA';
-    updateAllTrackIcons();
+    _refreshIcon(prev);
   }}else{{
     // Set as BRAA source
     braaSetSource(_fsUid);
@@ -1466,7 +1508,7 @@ function closeFltStrip(){{gv('flt-strip').classList.remove('open');_fsUid=null;i
 
 
 // ── BRAA Window ──────────────────────────────────────────────────────────────
-var _braaPairs=[],_braaLines=[],_braaPending=null,_braaTimer=null;
+var _braaPairs=[],_braaLines={{}},_braaPending=null,_braaTimer=null;
 var _braaIdCounter=0;
 
 function toggleBraaWin(){{
@@ -1484,7 +1526,9 @@ function computeBraa(latA,lonA,latB,lonB){{
 
 function getAspect(bearFromFriend,hdgTgt){{
   if(hdgTgt==null)return'—';
-  var diff=((hdgTgt-bearFromFriend)+540)%360-180;
+  // bearToUs = bearing depuis la CIBLE vers le friendly (inverse de bearFromFriend)
+  var bearToUs=(bearFromFriend+180)%360;
+  var diff=((hdgTgt-bearToUs)+540)%360-180;
   if(Math.abs(diff)<=30)return'HOT';
   if(Math.abs(diff)>=150)return'COLD';
   if(diff>0)return'FLANK R';
@@ -1494,13 +1538,14 @@ function getAspect(bearFromFriend,hdgTgt){{
 function braaSetSource(uid){{
   // Depuis le menu contextuel : fermer le menu d'abord
   if(_ctxEl)closeCtx();
+  var prev=_braaPending;
   _braaPending=uid;
   var t=trackData[uid];
   var lbl=t?t.display_label:uid;
   gv('braa-hint').innerHTML='<span style="color:#ff8800">⊕ '+lbl+'</span> — Cliquez sur la CIBLE';
   gv('braa-win').classList.add('open');
-  // Mettre en surbrillance visuelle la source
-  updateAllTrackIcons();
+  // Rafraîchir uniquement l'ancienne source et la nouvelle
+  _refreshIcon(prev);_refreshIcon(uid);
 }}
 
 function braaTargetClick(uid){{
@@ -1514,7 +1559,7 @@ function braaTargetClick(uid){{
   }}
   var srcUid=_braaPending;
   _braaPending=null;
-  updateAllTrackIcons();
+  _refreshIcon(srcUid);_refreshIcon(uid);
   // Reset BRAA button on flight strip if visible
   var btn=gv('fs-braa-btn');
   if(btn){{btn.classList.remove('active');btn.textContent='📐 BRAA';}}

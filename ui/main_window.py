@@ -8,7 +8,7 @@ Falcon-Eye — By Riesu (contact@falcon-charts.com) — GPL v3
 - Options couleurs
 - Status bar complète
 """
-import asyncio, threading, logging, json, os
+import asyncio, threading, logging, json, os, time
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QToolBar, QStatusBar, QLabel, QPushButton, QCheckBox, QComboBox,
@@ -96,6 +96,7 @@ class _Bridge(QObject):
     ownship_updated = pyqtSignal(dict)
     bms_status      = pyqtSignal(bool, str)
     ivc_status      = pyqtSignal(bool, str)
+    theater_changed = pyqtSignal(str, float, float, int)  # name, lat, lon, zoom
 
 
 class MainWindow(QMainWindow):
@@ -122,8 +123,11 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         self._start_async_loop()
 
-        # SM timer removed (GCI doesn't need ownship)
         self._clock_timer = QTimer(self); self._clock_timer.timeout.connect(self._update_clock); self._clock_timer.start(1000)
+        # Théâtre : poll toutes les 5s via SM3
+        self._theater_timer = QTimer(self)
+        self._theater_timer.timeout.connect(self._poll_theater)
+        self._theater_timer.start(5000)
 
     # ── UI ────────────────────────────────────────────────────────────────────
     def _setup_ui(self):
@@ -147,7 +151,13 @@ class MainWindow(QMainWindow):
         tb1.addSeparator()
 
         btn_bull = QPushButton("◎ BULL"); btn_bull.clicked.connect(self._center_bull)
-        btn_home = QPushButton("🏠 KOREA"); btn_home.clicked.connect(lambda: self.radar.center_on(37.5, 127.5))
+        btn_home = QPushButton("🏠 HOME")
+        def _go_home():
+            from core.theaters import theater_center_zoom, get_theater_name
+            lat, lon, zoom = theater_center_zoom()
+            self.radar.center_on(lat, lon, zoom)
+            btn_home.setText(f"🏠 {get_theater_name().upper()}")
+        btn_home.clicked.connect(_go_home)
         tb1.addWidget(btn_bull); tb1.addWidget(btn_home)
         tb1.addSeparator()
 
@@ -242,6 +252,7 @@ class MainWindow(QMainWindow):
         self._bridge.ownship_updated.connect(self._on_ownship)
         self._bridge.bms_status.connect(self._on_bms_status)
         self._bridge.ivc_status.connect(self._on_ivc_status)
+        self._bridge.theater_changed.connect(self._on_theater_changed)
         self.radar.cursor_moved.connect(self._on_cursor)
         self.radar.track_id_changed.connect(self._on_track_id_change)
         self.radar.radio_join_channel.connect(self._on_radio_join)
@@ -442,10 +453,13 @@ class MainWindow(QMainWindow):
     def _on_tracks(self, tracks):
         self._tracks = tracks
         self.radar.update_tracks(tracks)
-        if self._trtt:
+        # Throttle stats à 1/s max — stats() itère tous les contacts
+        now = time.monotonic()
+        if self._trtt and now - getattr(self, '_last_stats_t', 0) >= 1.0:
+            self._last_stats_t = now
             st = self._trtt.stats()
             n_rd = sum(1 for t in tracks.values()
-                       if t.alive and t.coalition in ("Red","Enemies") and t.is_air)
+                       if t.coalition in ("Red","Enemies") and t.is_air)
             txt = f"BLU:{st['air']}  RED:{n_rd}  AAM:{st['missile']}  HUM:{st['human']}"
             if self.lbl_tracks.text() != txt:
                 self.lbl_tracks.setText(txt)
@@ -510,6 +524,25 @@ class MainWindow(QMainWindow):
     # ── Polling ───────────────────────────────────────────────────────────────
     def _poll_sm(self):
         pass
+
+    def _poll_theater(self):
+        """Poll SM3 toutes les 5s pour détecter un changement de théâtre."""
+        try:
+            from core.shared_mem import check_theater_change
+            from core.theaters import get_theater_name, theater_center_zoom
+            if check_theater_change():
+                name = get_theater_name()
+                c_lat, c_lon, zoom = theater_center_zoom()
+                self._bridge.theater_changed.emit(name, c_lat, c_lon, zoom)
+        except Exception as e:
+            logger.debug(f"Theater poll: {e}")
+
+    @pyqtSlot(str, float, float, int)
+    def _on_theater_changed(self, name: str, lat: float, lon: float, zoom: int):
+        """Recentre le radar quand le théâtre change."""
+        self.radar.set_theater(name, lat, lon, zoom)
+        self.statusBar().showMessage(f"Théâtre détecté : {name}", 5000)
+        logger.info(f"Theater changed → {name} ({lat:.2f}, {lon:.2f}) zoom={zoom}")
 
     # ── Async loop ────────────────────────────────────────────────────────────
     def _start_async_loop(self):

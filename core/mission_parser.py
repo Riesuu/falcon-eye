@@ -15,15 +15,14 @@ Format des entrées STPT :
 import re
 import logging
 from core.data import bms_to_latlon
+from core.theaters import in_theater_bbox
 
 logger = logging.getLogger(__name__)
 
-_KTO_LAT = (28.0, 46.0)
-_KTO_LON = (117.0, 136.0)
-
 
 def _in_kto(lat, lon):
-    return _KTO_LAT[0] <= lat <= _KTO_LAT[1] and _KTO_LON[0] <= lon <= _KTO_LON[1]
+    """Vérifie si les coords sont dans le bbox du théâtre actif."""
+    return in_theater_bbox(lat, lon)
 
 
 def _parse_entry(val: str):

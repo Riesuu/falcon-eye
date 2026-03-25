@@ -282,7 +282,7 @@ class RadarWidget(QWidget):
 
     def _push_tracks(self):
         if not self._page_ready: return
-        alive  = [t for t in self.tracks.values() if t.alive]
+        alive  = list(self.tracks.values())
         # ── Filtre portée radar réaliste (TOUJOURS ACTIF) ──────────────────
         # Formule ligne de mire standard : R = 1.23 * (√alt_avion + √alt_radar)
         # Radar GCI au sol ~ 50ft effectif (mât + terrain)

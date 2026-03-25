@@ -442,10 +442,14 @@ class MainWindow(QMainWindow):
     def _on_tracks(self, tracks):
         self._tracks = tracks
         self.radar.update_tracks(tracks)
-        if self._trtt:
+        # Throttle stats à 1/s max — stats() itère tous les contacts
+        import time
+        now = time.monotonic()
+        if self._trtt and now - getattr(self, '_last_stats_t', 0) >= 1.0:
+            self._last_stats_t = now
             st = self._trtt.stats()
             n_rd = sum(1 for t in tracks.values()
-                       if t.alive and t.coalition in ("Red","Enemies") and t.is_air)
+                       if t.coalition in ("Red","Enemies") and t.is_air)
             txt = f"BLU:{st['air']}  RED:{n_rd}  AAM:{st['missile']}  HUM:{st['human']}"
             if self.lbl_tracks.text() != txt:
                 self.lbl_tracks.setText(txt)

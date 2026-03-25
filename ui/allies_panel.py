@@ -130,7 +130,7 @@ class AlliesPanel(QWidget):
 
         allies = [
             t for t in tracks.values()
-            if t.alive and t.is_air and t.lat != 0
+            if t.is_air and t.lat != 0
             and t.coalition in ("Blue", "Allies")
         ]
         allies.sort(key=lambda t: (not t.is_human, t.display_label))

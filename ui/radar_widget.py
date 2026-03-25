@@ -137,7 +137,7 @@ class RadarWidget(QWidget):
     def _on_page_ready(self):
         self._page_ready = True
         # Push audio after bridge fully initialized (2s safe margin)
-        QTimer.singleShot(2000, self._push_audio_devices)
+        QTimer.singleShot(500, self._push_audio_devices)  # precharge audio avant 1er clic OPTIONS
         if self._pending_mission is not None:
             m = self._pending_mission
             self._pending_mission = None
@@ -226,6 +226,7 @@ class RadarWidget(QWidget):
 
     def _push_audio_devices(self):
         """Collect audio devices in background thread, push to JS via Qt signal."""
+        self._audio_devices_loaded = True   # marque: ne plus rappeler depuis _show_options
         import json, logging, threading, re
         log = logging.getLogger(__name__)
 

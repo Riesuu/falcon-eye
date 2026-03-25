@@ -225,8 +225,13 @@ class TRTTClient:
             if self._parse_line(line): changed = True
         if changed:
             now = time.time()
-            for t in self.tracks.values():
-                if now - t.updated_at > 60.0: t.alive = False
+            # Marquer comme morts les contacts sans update depuis 60s
+            dead_uids = [
+                uid for uid, t in self.tracks.items()
+                if now - t.updated_at > 60.0
+            ]
+            for uid in dead_uids:
+                del self.tracks[uid]
             self.on_update(self.tracks)
 
     def _parse_line(self, line: str) -> bool:
@@ -238,7 +243,8 @@ class TRTTClient:
             self._parse_global(line[2:]); return False
         if line.startswith("-"):
             uid = line[1:].strip()
-            if uid in self.tracks: self.tracks[uid].alive = False
+            if uid in self.tracks:
+                del self.tracks[uid]
             return True
         comma = line.find(",")
         if comma < 1: return False
@@ -334,7 +340,6 @@ class TRTTClient:
                         f"name={t.name} cs={t.callsign} pilot={t.pilot} "
                         f"grp={t.group} coal={t.coalition} id={t.id_code}")
 
-        t.push_trail()
         return True
 
     def _parse_T(self, t: Track, raw: str):
@@ -409,9 +414,11 @@ class TRTTClient:
             self.on_update(self.tracks)
 
     def stats(self) -> dict:
-        alive = [t for t in self.tracks.values() if t.alive]
+        # Toutes les tracks dans le dict sont vivantes (les mortes sont supprimées)
+        alive = list(self.tracks.values())
         return {
-            "total": len(self.tracks), "alive": len(alive),
+            "total":   len(alive),
+            "alive":   len(alive),
             "air":     sum(1 for t in alive if t.is_air),
             "missile": sum(1 for t in alive if t.is_missile),
             "ground":  sum(1 for t in alive if t.is_ground),

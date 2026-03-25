@@ -420,8 +420,11 @@ class MainWindow(QMainWindow):
     def _show_options(self):
         """Open the JS options panel inside the radar map."""
         self.radar._js("openOptions();")
-        # Push fresh audio device list immediately when options panel opens
-        self.radar._push_audio_devices()
+        # Push audio devices seulement si pas encore charges -- evite le flash
+        # noir cause par sounddevice/PortAudio qui bloque ~300ms au 1er appel.
+        # Les rechargements suivants passent par onRequestAudioDevices() depuis JS.
+        if not getattr(self.radar, '_audio_devices_loaded', False):
+            self.radar._push_audio_devices()
 
     # ── Import mission ────────────────────────────────────────────────────────
     def _import_mission(self):

@@ -99,3 +99,16 @@ def get_radio_data():
         return None
 
     return result if result else None
+
+
+def check_theater_change() -> bool:
+    """
+    Vérifie si le théâtre BMS a changé en lisant FalconSharedMemoryArea3.
+    Retourne True si le théâtre a changé (la carte doit se recentrer).
+    Silencieux si SM3 n'est pas disponible (BMS non lancé, ou vieille version).
+    """
+    try:
+        from core.stringdata import detect_theater
+        return detect_theater()
+    except Exception:
+        return False
